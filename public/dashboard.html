@@ -16,7 +16,7 @@
     else if (savedTheme === "system") theme = sysDark ? "dark" : "light";
     else theme = param || (sysDark ? "dark" : "light");
     document.documentElement.setAttribute("data-theme", theme);
-    const scale = parseFloat(localStorage.getItem("acc.fontScale"));
+    const scale = parseFloat(localStorage.getItem("acc.fontScale")) || 1.3;
     if (scale && scale !== 1) document.documentElement.style.zoom = String(scale);
   })();
 </script>

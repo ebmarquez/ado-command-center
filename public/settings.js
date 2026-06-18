@@ -6,10 +6,11 @@
 (() => {
   const LS = window.localStorage;
   const KEY_THEME = "acc.theme";     // 'light' | 'dark' | 'system'
-  const KEY_FONT = "acc.fontScale";  // numeric string, 1 = default
+  const KEY_FONT = "acc.fontScale";  // numeric string, 1 = browser baseline
+  const DEFAULT_FONT = 1.3;          // XL — comfortable default; smaller sizes are opt-in
 
   const getTheme = () => LS.getItem(KEY_THEME) || "system";
-  const getFont = () => parseFloat(LS.getItem(KEY_FONT)) || 1;
+  const getFont = () => parseFloat(LS.getItem(KEY_FONT)) || DEFAULT_FONT;
 
   function effectiveTheme(t) {
     if (t === "light" || t === "dark") return t;
@@ -76,6 +77,14 @@
     .acc-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--cp-border-strong);
       border-top-color: var(--cp-accent); border-radius: 50%; animation: accspin 0.7s linear infinite; vertical-align: -2px; margin-right: 6px; }
     @keyframes accspin { to { transform: rotate(360deg); } }
+    .acc-panel { max-height: calc(100vh - 80px); overflow-y: auto; }
+    .acc-sec { border-top: 1px solid var(--cp-border); margin-top: 4px; padding-top: 12px; }
+    .acc-field { margin-bottom: 10px; }
+    .acc-field > label { display: block; font-size: 12px; font-weight: 600; color: var(--cp-text-muted); margin-bottom: 4px; }
+    .acc-field input, .acc-field select { width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px 8px;
+      border-radius: 8px; border: 1px solid var(--cp-border); background: var(--cp-surface); color: var(--cp-text); font-family: inherit; }
+    .acc-grid2 { display: flex; gap: 8px; }
+    .acc-grid2 > .acc-field { flex: 1; }
   `;
   document.head.appendChild(style);
 
@@ -110,6 +119,7 @@
         <button data-v="1">Default</button>
         <button data-v="1.15">Large</button>
         <button data-v="1.3">XL</button>
+        <button data-v="1.5">XXL</button>
       </div>
     </div>
     <div class="acc-row" id="accAutostartRow" style="display:none">
@@ -137,6 +147,51 @@
       </div>
       <div class="acc-hint" id="accPeopleHint"></div>
       <button class="acc-btn primary" id="accAreaSave" style="margin-top:8px">Save &amp; reload</button>
+    </div>
+    <div class="acc-sec" id="accCfgSection">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--cp-text-muted);margin-bottom:8px">Configuration</label>
+      <div class="acc-field">
+        <label>Organization URL</label>
+        <input id="accCfgOrg" placeholder="https://dev.azure.com/org" autocomplete="off" />
+      </div>
+      <div class="acc-field">
+        <label>Project</label>
+        <input id="accCfgProject" placeholder="Project name" autocomplete="off" />
+      </div>
+      <div class="acc-field">
+        <label>Active scope (drives the board)</label>
+        <select id="accCfgActive"></select>
+      </div>
+      <div class="acc-field">
+        <label>Saved query</label>
+        <select id="accCfgQuerySelect"><option value="">Loading queries…</option></select>
+        <input id="accCfgQueryId" placeholder="Query GUID" autocomplete="off" style="margin-top:6px" />
+        <div class="acc-hint" id="accCfgQueryHint"></div>
+      </div>
+      <div class="acc-grid2">
+        <div class="acc-field">
+          <label>Stale after (days)</label>
+          <input id="accCfgStale" type="number" min="1" step="1" />
+        </div>
+        <div class="acc-field">
+          <label>WIP limit</label>
+          <input id="accCfgWip" type="number" min="1" step="1" />
+        </div>
+      </div>
+      <div class="acc-field">
+        <label>Closed states (excluded from the board)</label>
+        <div class="acc-chips" id="accClosedChips"></div>
+        <div class="acc-add">
+          <input id="accClosedInput" placeholder="Add a state…" autocomplete="off" />
+          <button class="acc-btn" id="accClosedAdd">Add</button>
+        </div>
+      </div>
+      <div class="acc-field">
+        <label>Port (restart required)</label>
+        <input id="accCfgPort" type="number" min="1" max="65535" step="1" />
+      </div>
+      <button class="acc-btn primary" id="accCfgSave">Save configuration</button>
+      <div class="acc-hint" id="accCfgHint"></div>
     </div>
     <div class="acc-row" style="margin-bottom:0">
       <label>Account</label>
@@ -393,6 +448,127 @@
     }
   };
 
+  // ---- configuration (full config.json editor) ----
+  const cfgOrg = panel.querySelector("#accCfgOrg");
+  const cfgProject = panel.querySelector("#accCfgProject");
+  const cfgActive = panel.querySelector("#accCfgActive");
+  const cfgQuerySelect = panel.querySelector("#accCfgQuerySelect");
+  const cfgQueryId = panel.querySelector("#accCfgQueryId");
+  const cfgQueryHint = panel.querySelector("#accCfgQueryHint");
+  const cfgStale = panel.querySelector("#accCfgStale");
+  const cfgWip = panel.querySelector("#accCfgWip");
+  const cfgPort = panel.querySelector("#accCfgPort");
+  const closedChips = panel.querySelector("#accClosedChips");
+  const closedInput = panel.querySelector("#accClosedInput");
+  const closedAdd = panel.querySelector("#accClosedAdd");
+  const cfgSave = panel.querySelector("#accCfgSave");
+  const cfgHint = panel.querySelector("#accCfgHint");
+  let closedStates = [];
+  let cfgLoaded = false;
+  let cfgQueriesLoaded = false;
+
+  function setCfgHint(msg, isErr) { cfgHint.textContent = msg || ""; cfgHint.classList.toggle("err", !!isErr); }
+
+  function renderClosedChips() {
+    closedChips.innerHTML = closedStates.length
+      ? closedStates.map((s, i) =>
+          `<span class="acc-chip" title="${escapeHtml(s)}"><span>${escapeHtml(s)}</span>` +
+          `<button data-i="${i}" aria-label="Remove">×</button></span>`).join("")
+      : `<span class="acc-hint">No closed states set.</span>`;
+    closedChips.querySelectorAll("button[data-i]").forEach((b) => {
+      b.onclick = () => { closedStates.splice(Number(b.dataset.i), 1); renderClosedChips(); };
+    });
+  }
+  function addClosed() {
+    const v = closedInput.value.trim();
+    if (!v) return;
+    if (closedStates.some((s) => s.toLowerCase() === v.toLowerCase())) { closedInput.value = ""; return; }
+    closedStates.push(v); closedInput.value = ""; renderClosedChips();
+  }
+  closedAdd.onclick = addClosed;
+  closedInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addClosed(); } });
+
+  cfgQuerySelect.addEventListener("change", () => {
+    if (cfgQuerySelect.value) cfgQueryId.value = cfgQuerySelect.value;
+  });
+
+  async function loadQueriesInto(org, project, currentId) {
+    if (cfgQueriesLoaded || !org || !project) return;
+    try {
+      const q = `?org=${encodeURIComponent(org)}&project=${encodeURIComponent(project)}`;
+      const r = await fetch("/api/discover/queries" + q).then((x) => x.json());
+      const queries = Array.isArray(r.queries) ? r.queries : [];
+      cfgQuerySelect.innerHTML = [`<option value="">— pick a saved query —</option>`]
+        .concat(queries.map((qq) => `<option value="${escapeHtml(qq.id)}">${escapeHtml(qq.path || qq.name)}</option>`))
+        .join("");
+      if (currentId) {
+        cfgQuerySelect.value = currentId;
+        const hit = queries.find((qq) => qq.id === currentId);
+        cfgQueryHint.textContent = hit ? `Current: ${hit.path || hit.name}` : "Current query is not in this project's list.";
+      }
+      cfgQueriesLoaded = true;
+    } catch {
+      cfgQuerySelect.innerHTML = `<option value="">(couldn't load queries — enter the ID below)</option>`;
+    }
+  }
+
+  async function loadSettings() {
+    if (cfgLoaded) return;
+    setCfgHint("Loading…");
+    try {
+      const s = await fetch("/api/settings").then((r) => r.json());
+      cfgOrg.value = s.org || "";
+      cfgProject.value = s.project || "";
+      cfgStale.value = s.staleDays != null ? s.staleDays : "";
+      cfgWip.value = s.wipLimit != null ? s.wipLimit : "";
+      cfgPort.value = s.port != null ? s.port : "";
+      closedStates = Array.isArray(s.closedStates) ? s.closedStates.slice() : [];
+      renderClosedChips();
+      cfgActive.innerHTML = (s.scopes || [])
+        .map((sc) => `<option value="${sc.index}">${escapeHtml(sc.name)} (${escapeHtml(sc.type)})</option>`).join("");
+      cfgActive.value = String(s.activeScope || 0);
+      const qid = s.queryScope ? s.queryScope.queryId : "";
+      cfgQueryId.value = qid || "";
+      cfgQueryHint.textContent = "";
+      cfgLoaded = true;
+      setCfgHint("");
+      loadQueriesInto(s.org, s.project, qid); // best-effort picker; needs sign-in
+    } catch {
+      setCfgHint("Couldn't load configuration.", true);
+    }
+  }
+
+  cfgSave.onclick = async () => {
+    cfgSave.disabled = true; setCfgHint("Saving…");
+    const payload = {
+      org: cfgOrg.value.trim(),
+      project: cfgProject.value.trim(),
+      staleDays: cfgStale.value,
+      wipLimit: cfgWip.value,
+      port: cfgPort.value,
+      closedStates,
+      activeScope: cfgActive.value,
+      query: { queryId: cfgQueryId.value.trim() },
+    };
+    try {
+      const r = await fetch("/api/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+      if (j.portChanged) {
+        setCfgHint(`Saved. Restart the app (tray ▸ Restart) to use port ${j.port}.`);
+        cfgSave.disabled = false;
+      } else {
+        setCfgHint("Saved. Reloading…");
+        location.reload();
+      }
+    } catch (e) {
+      cfgSave.disabled = false; setCfgHint(e.message, true);
+    }
+  };
+
   // ---- open/close ----
   function open() {
     markSeg("theme", getTheme());
@@ -400,6 +576,7 @@
     refreshAccount();
     loadAreas();
     loadAutostart();
+    loadSettings();
     panel.hidden = false;
   }
   function close() {

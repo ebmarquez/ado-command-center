@@ -626,6 +626,83 @@ const server = http.createServer(async (req, res) => {
     if (p.startsWith("/api/") && !CONFIG) return send(res, 409, { error: "not configured", hint: "complete setup at /setup" });
 
     if (p === "/api/config") return send(res, 200, { staleDays: CONFIG.staleDays, wipLimit: CONFIG.wipLimit, org: CONFIG.org, project: CONFIG.project, scopes: (CONFIG.scopes || []).map((s) => s.name), activeScope: CONFIG.activeScope, closedStates: CONFIG.closedStates || [] });
+
+    // --- full settings editor: read + write every config.json field ---
+    if (p === "/api/settings" && req.method === "GET") {
+      const scopes = (CONFIG.scopes || []).map((s, i) => ({
+        index: i, name: s.name || s.type, type: s.type,
+        queryId: s.queryId || "", areaPaths: s.areaPaths || [], people: s.people || [],
+      }));
+      const qIdx = scopes.findIndex((s) => s.type === "query");
+      return send(res, 200, {
+        org: CONFIG.org || "", project: CONFIG.project || "",
+        port: CONFIG.port || 7421,
+        staleDays: CONFIG.staleDays, wipLimit: CONFIG.wipLimit,
+        closedStates: CONFIG.closedStates || [],
+        activeScope: CONFIG.activeScope || 0,
+        scopes,
+        queryScope: qIdx >= 0 ? scopes[qIdx] : null,
+      });
+    }
+    if (p === "/api/settings" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const next = { ...CONFIG };
+      const errs = [];
+
+      if (body.org !== undefined) next.org = String(body.org).trim();
+      if (body.project !== undefined) next.project = String(body.project).trim();
+      if (body.port !== undefined) {
+        const n = parseInt(body.port, 10);
+        if (!Number.isInteger(n) || n < 1 || n > 65535) errs.push("Port must be a whole number 1–65535.");
+        else next.port = n;
+      }
+      if (body.staleDays !== undefined) {
+        const n = parseInt(body.staleDays, 10);
+        if (!Number.isInteger(n) || n < 1) errs.push("Stale days must be a positive whole number.");
+        else next.staleDays = n;
+      }
+      if (body.wipLimit !== undefined) {
+        const n = parseInt(body.wipLimit, 10);
+        if (!Number.isInteger(n) || n < 1) errs.push("WIP limit must be a positive whole number.");
+        else next.wipLimit = n;
+      }
+      if (Array.isArray(body.closedStates)) {
+        next.closedStates = [...new Set(body.closedStates.map((s) => String(s).trim()).filter(Boolean))];
+      }
+
+      const scopes = Array.isArray(next.scopes) ? next.scopes.map((s) => ({ ...s })) : [];
+      if (body.query && (body.query.queryId !== undefined || body.query.name !== undefined)) {
+        const qid = body.query.queryId !== undefined ? String(body.query.queryId).trim() : undefined;
+        const qname = body.query.name !== undefined ? String(body.query.name).trim() : undefined;
+        let qi = scopes.findIndex((s) => s.type === "query");
+        if (qi === -1) {
+          if (qid) { scopes.push({ name: qname || "My Query", type: "query", queryId: qid }); }
+        } else {
+          if (qid !== undefined) scopes[qi].queryId = qid;
+          if (qname) scopes[qi].name = qname;
+        }
+      }
+      next.scopes = scopes;
+
+      if (body.activeScope !== undefined) {
+        const i = parseInt(body.activeScope, 10);
+        if (Number.isInteger(i) && i >= 0 && i < scopes.length) next.activeScope = i;
+        else errs.push("Invalid active scope selection.");
+      }
+
+      // Guard: the active scope must be runnable after the edit.
+      const act = scopes[next.activeScope || 0];
+      if (act && act.type === "query" && !act.queryId) errs.push("The active query has no query ID.");
+      if (act && act.type === "areaPath" && !(act.areaPaths && act.areaPaths.length)) errs.push("The active area-path scope has no area paths.");
+
+      if (errs.length) return send(res, 400, { error: errs.join(" ") });
+
+      const portChanged = (CONFIG.port || 7421) !== (next.port || 7421);
+      CONFIG = cfgMod.save(next);
+      rebuildAuth();
+      stateCache = null;
+      return send(res, 200, { ok: true, portChanged, port: CONFIG.port });
+    }
     if (p === "/api/bootstrap") { const [items, states] = await Promise.all([getItems(), getTypeStates()]); return send(res, 200, { items, states, pulled: new Date().toISOString() }); }
     if (p === "/api/items") return send(res, 200, { items: await getItems(), pulled: new Date().toISOString() });
     if (p === "/api/hierarchy") return send(res, 200, { ...(await getHierarchy()), pulled: new Date().toISOString() });

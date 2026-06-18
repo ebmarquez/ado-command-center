@@ -42,14 +42,18 @@ computer, no server to host, no secrets to store.
   menu opens the board/dashboard in a chromeless Edge app-window, restarts the
   server, or quits. Optional auto-start at login. See *Run as a tray app*.
 - **Settings menu** — a ⚙ gear on both the board and the dashboard for
-  **theme** (Light / Dark / System), **text size** (Small / Default / Large / XL),
-  a **Start at login** toggle (Windows tray app), an **account** sign-in/out
-  trigger, and an **Area paths** editor that switches the
+  **theme** (Light / Dark / System), **text size** (Small / Default / Large / XL /
+  XXL — defaults to **XL**), a **Start at login** toggle (Windows tray app), an
+  **account** sign-in/out trigger, an **Area paths** editor that switches the
   board to a locally-managed area-path scope (add/remove paths, save, reload — no
-  ADO query editing). The area-path editor also takes an optional **people** filter
+  ADO query editing), and a **Configuration** section that edits every
+  `config.json` field — organization URL, project, active scope, saved query
+  (pick from a list or paste a GUID), stale-after days, WIP limit, closed
+  states, and port (a port change takes effect after a tray ▸ Restart). The
+  area-path editor also takes an optional **people** filter
   (by assignee email) so the scope is *items in those area paths **and** assigned to
-  those people*. Theme/text preferences are saved in the browser; area paths and
-  people are saved to `config.json`.
+  those people*. Theme/text preferences are saved in the browser; everything in
+  the Configuration section is saved to `config.json`.
 
 ## Prerequisites
 
