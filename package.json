@@ -1,0 +1,16 @@
+{
+  "name": "ado-command-center",
+  "version": "0.1.0",
+  "description": "Local Kanban board + analytics dashboard for Azure DevOps work items, with drag-to-update write-back, hierarchy rollups, and an attention radar.",
+  "type": "commonjs",
+  "main": "kanban-server.js",
+  "scripts": {
+    "start": "node kanban-server.js",
+    "snapshot": "node snapshot.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADO Kanban — Live</title>
+<script>
+  (() => {
+    // Pre-paint bootstrap: apply saved theme + text size before first render to
+    // avoid a flash. The settings gear (settings.js) manages these values.
+    const savedTheme = localStorage.getItem("acc.theme"); // light | dark | system
+    const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+    const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    let theme;
+    if (savedTheme === "light" || savedTheme === "dark") theme = savedTheme;
+    else if (savedTheme === "system") theme = sysDark ? "dark" : "light";
+    else theme = param || (sysDark ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+    const scale = parseFloat(localStorage.getItem("acc.fontScale"));
+    if (scale && scale !== 1) document.documentElement.style.zoom = String(scale);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff; --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede; --cp-border-strong: #919191; --cp-text: #242424; --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f; --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177,31,75,0.08); --cp-accent-fg: #ffffff; --cp-success: #16a34a;
+  --cp-danger: #dc2626; --cp-warning: #f59e0b; --cp-link: #0078d4; --cp-highlight: rgba(177,31,75,0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929; --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747; --cp-border-strong: #5f5f5f; --cp-text: #dedede; --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0; --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253,142,161,0.14); --cp-accent-fg: #1a1a1a; --cp-success: #4ade80;
+  --cp-danger: #f87171; --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-highlight: rgba(253,142,161,0.12);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--cp-bg); color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.4; }
+header { position: sticky; top: 0; z-index: 30; background: var(--cp-bg-elevated);
+  border-bottom: 1px solid var(--cp-border); padding: 12px 20px; }
+.title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.meta { color: var(--cp-text-muted); font-size: 12px; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.control-group { display: flex; align-items: center; gap: 6px; }
+label.lbl { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
+select, input[type="search"] { background: var(--cp-surface); color: var(--cp-text);
+  border: 1px solid var(--cp-border); border-radius: 0.625rem; padding: 6px 10px; font-size: 13px; font-family: inherit; }
+input[type="search"] { min-width: 220px; }
+select:focus, input:focus { outline: 2px solid var(--cp-accent-soft); border-color: var(--cp-accent); }
+button.btn { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-radius: 0.625rem; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+button.btn:hover { border-color: var(--cp-border-strong); }
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--cp-border); background: var(--cp-surface); color: var(--cp-text-muted);
+  border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; }
+.chip.active { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+.chip .ct { opacity: 0.7; margin-left: 4px; font-weight: 500; }
+.board { display: flex; gap: 14px; padding: 16px 20px 40px; overflow-x: auto; align-items: flex-start;
+  min-height: calc(100vh - 140px); }
+.col { flex: 0 0 290px; max-width: 290px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+  border-radius: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 170px); transition: background .12s, border-color .12s; }
+.col.drop-ok { border-color: var(--cp-success); background: var(--cp-highlight); }
+.col.drop-bad { opacity: 0.45; }
+.col-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
+.col-name { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.col-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cp-accent); }
+.col-count { background: var(--cp-surface); border: 1px solid var(--cp-border); color: var(--cp-text-muted);
+  border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 700; }
+.col-body { padding: 4px 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 9px; min-height: 60px; flex: 1; }
+.card { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 10px; padding: 10px 11px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14); cursor: grab; border-left: 3px solid var(--cp-border-strong); }
+.card:active { cursor: grabbing; }
+.card.dragging { opacity: 0.4; }
+.card.saving { pointer-events: none; }
+.card.flash-ok { animation: flashOk .8s ease; }
+.card.flash-err { animation: flashErr .8s ease; }
+@keyframes flashOk { 0% { box-shadow: 0 0 0 2px var(--cp-success); } 100% {} }
+@keyframes flashErr { 0% { box-shadow: 0 0 0 2px var(--cp-danger); } 100% {} }
+.card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+  padding: 2px 7px; border-radius: 5px; color: #fff; }
+.t-Bug { background: #dc2626; } .t-Feature { background: #8250df; } .t-Epic { background: #d4a017; }
+.t-Task { background: #0969da; } .t-PBI { background: #1f883d; } .t-TestCase { background: #6f6f6f; }
+.id-link { font-size: 11px; color: var(--cp-link); text-decoration: none; font-weight: 600; }
+.id-link:hover { text-decoration: underline; }
+.prio { margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; }
+.p1 { background: var(--cp-danger); color: #fff; } .p2 { background: var(--cp-warning); color: #1a1a1a; }
+.p3 { background: var(--cp-surface-soft); color: var(--cp-text-muted); border: 1px solid var(--cp-border); }
+.p4 { background: var(--cp-surface-soft); color: var(--cp-text-soft); border: 1px solid var(--cp-border); }
+.card-title { font-size: 13px; font-weight: 500; margin: 2px 0 8px; }
+.card-foot { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--cp-text-muted); }
+.avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--cp-accent); color: var(--cp-accent-fg);
+  font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.assignee-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tags { margin-left: auto; display: flex; gap: 4px; }
+.tag { font-size: 10px; background: var(--cp-accent-soft); color: var(--cp-accent); padding: 1px 6px; border-radius: 5px; }
+.empty { color: var(--cp-text-soft); font-size: 12px; text-align: center; padding: 18px 6px; }
+.dimmed { color: var(--cp-text-soft); }
+#toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 100;
+  display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-left: 4px solid var(--cp-accent); border-radius: 10px; padding: 10px 16px; font-size: 13px;
+  box-shadow: var(--cp-shadow, 0 8px 24px rgba(0,0,0,0.18)); max-width: 480px; }
+.toast.ok { border-left-color: var(--cp-success); }
+.toast.err { border-left-color: var(--cp-danger); }
+#status { display: flex; align-items: center; gap: 14px; }
+.statedot { width: 8px; height: 8px; border-radius: 50%; background: var(--cp-text-soft); }
+.statedot.live { background: var(--cp-success); }
+.statedot.err { background: var(--cp-danger); }
+.loading { padding: 60px; text-align: center; color: var(--cp-text-muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="title-row">
+    <h1>ADO Kanban — Live</h1>
+    <span class="meta" id="metaLine">Loading…</span>
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <label class="lbl" for="assigneeSel">Assignee</label>
+      <select id="assigneeSel"><option value="__all">Everyone</option></select>
+    </div>
+    <div class="control-group"><div class="chip-row" id="typeChips"></div></div>
+    <div class="control-group"><input type="search" id="searchBox" placeholder="Search title, ID, tag…" /></div>
+    <div class="control-group"><button class="btn" id="refreshBtn">↻ Refresh</button></div>
+    <div class="control-group"><a class="btn" href="/dashboard" style="text-decoration:none;display:inline-block">📊 Dashboard</a></div>
+    <div class="control-group" id="settingsSlot"></div>
+    <div class="control-group" id="status">
+      <span class="statedot" id="statedot"></span><span class="meta" id="statetext">connecting…</span>
+    </div>
+  </div>
+</header>
+<div class="board" id="board"><div class="loading">Loading work items from Azure DevOps…</div></div>
+<div id="toast"></div>
+
+<script>
+const API = "";
+let ITEMS = [], TYPE_STATES = {};
+const COLUMN_ORDER = ["New","Design","To Do","Approved","Ready","Committed","Active","In Progress","In Review","Resolved","Done"];
+const typeClass = t => ({ "Bug":"t-Bug","Feature":"t-Feature","Epic":"t-Epic","Task":"t-Task","Product Backlog Item":"t-PBI","Test Case":"t-TestCase" }[t] || "t-Task");
+const typeShort = t => ({ "Product Backlog Item":"PBI","Test Case":"Test" }[t] || t);
+const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const state = { assignee:"__all", types:new Set(), search:"" };
+
+function allowedStates(type){ return (TYPE_STATES[type]||[]).map(s=>s.name); }
+
+function activeColumns(){
+  const present = new Set(ITEMS.map(i=>i.state));
+  // include any state present in data, plus every allowed target across visible types, ordered
+  const targets = new Set();
+  for(const i of ITEMS){ for(const s of allowedStates(i.type)) targets.add(s); }
+  const cols = COLUMN_ORDER.filter(c => present.has(c) || targets.has(c));
+  // append any unknown present states not in COLUMN_ORDER
+  for(const s of present){ if(!cols.includes(s)) cols.push(s); }
+  return cols;
+}
+
+function buildControls(){
+  const sel = document.getElementById('assigneeSel');
+  sel.innerHTML = '<option value="__all">Everyone</option>';
+  [...new Set(ITEMS.map(i=>i.assignee))].sort().forEach(p=>{
+    const c = ITEMS.filter(i=>i.assignee===p).length;
+    const o=document.createElement('option'); o.value=p; o.textContent=`${p} (${c})`; sel.appendChild(o);
+  });
+  sel.value = state.assignee;
+  sel.onchange = e => { state.assignee = e.target.value; render(); };
+
+  const tc = document.getElementById('typeChips'); tc.innerHTML='';
+  const order=["Epic","Feature","Product Backlog Item","Task","Bug","Test Case"];
+  [...new Set(ITEMS.map(i=>i.type))].sort((a,b)=>order.indexOf(a)-order.indexOf(b)).forEach(t=>{
+    const chip=document.createElement('span'); chip.className='chip'+(state.types.has(t)?' active':'');
+    const cnt=ITEMS.filter(i=>i.type===t).length;
+    chip.innerHTML=`${esc(typeShort(t))}<span class="ct">${cnt}</span>`;
+    chip.onclick=()=>{ state.types.has(t)?state.types.delete(t):state.types.add(t); chip.classList.toggle('active'); render(); };
+    tc.appendChild(chip);
+  });
+  document.getElementById('searchBox').oninput = e => { state.search=e.target.value.toLowerCase().trim(); render(); };
+  document.getElementById('refreshBtn').onclick = () => loadData(true);
+}
+
+function matches(it){
+  if(state.assignee!=="__all" && it.assignee!==state.assignee) return false;
+  if(state.types.size && !state.types.has(it.type)) return false;
+  if(state.search){ const h=`${it.id} ${it.title} ${it.tags||""} ${it.assignee}`.toLowerCase(); if(!h.includes(state.search)) return false; }
+  return true;
+}
+
+function cardHTML(it){
+  const prio = it.priority ? `<span class="prio p${it.priority}">P${it.priority}</span>` : "";
+  const tags = it.tags ? `<div class="tags">${it.tags.split(';').slice(0,2).map(t=>`<span class="tag">${esc(t.trim())}</span>`).join("")}</div>` : "";
+  return `<div class="card" draggable="true" data-id="${it.id}" data-type="${esc(it.type)}" data-state="${esc(it.state)}">
+    <div class="card-top">
+      <span class="type-badge ${typeClass(it.type)}">${esc(typeShort(it.type))}</span>
+      <a class="id-link" href="${it.url}" target="_blank" draggable="false">#${it.id}</a>${prio}
+    </div>
+    <div class="card-title">${esc(it.title)}</div>
+    <div class="card-foot">
+      <span class="avatar" title="${esc(it.assignee)}">${esc(initials(it.assignee))}</span>
+      <span class="assignee-name">${esc(it.assignee)}</span>${tags}
+    </div>
+  </div>`;
+}
+
+function render(){
+  const cols = activeColumns();
+  const visible = ITEMS.filter(matches);
+  const board = document.getElementById('board');
+  board.innerHTML = cols.map(col=>{
+    const list = visible.filter(i=>i.state===col).sort((a,b)=>(a.priority||9)-(b.priority||9) || new Date(b.changed)-new Date(a.changed));
+    const cards = list.length ? list.map(cardHTML).join("") : `<div class="empty">—</div>`;
+    return `<div class="col" data-col="${esc(col)}">
+      <div class="col-head"><span class="col-name"><span class="col-dot"></span>${esc(col)}</span>
+        <span class="col-count">${list.length}</span></div>
+      <div class="col-body">${cards}</div></div>`;
+  }).join("");
+  document.getElementById('metaLine').textContent = `${visible.length} of ${ITEMS.length} items · drag a card to change its state`;
+  wireDnD();
+}
+
+// ---- drag and drop ----
+let dragEl = null, dragItem = null;
+function wireDnD(){
+  document.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('dragstart', e=>{
+      dragEl = card; dragItem = ITEMS.find(i=>i.id==card.dataset.id);
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      const allowed = allowedStates(dragItem.type);
+      document.querySelectorAll('.col').forEach(col=>{
+        const target = col.dataset.col;
+        if(target===dragItem.state) return;
+        if(allowed.includes(target)) col.classList.add('drop-ok'); else col.classList.add('drop-bad');
+      });
+    });
+    card.addEventListener('dragend', ()=>{
+      card.classList.remove('dragging');
+      document.querySelectorAll('.col').forEach(c=>c.classList.remove('drop-ok','drop-bad'));
+      dragEl=null; dragItem=null;
+    });
+  });
+  document.querySelectorAll('.col').forEach(col=>{
+    col.addEventListener('dragover', e=>{
+      if(!dragItem) return;
+      const target=col.dataset.col;
+      if(target===dragItem.state || !allowedStates(dragItem.type).includes(target)) return;
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+    });
+    col.addEventListener('drop', async e=>{
+      e.preventDefault();
+      if(!dragItem) return;
+      const target=col.dataset.col;
+      const item=dragItem;
+      if(target===item.state || !allowedStates(item.type).includes(target)) return;
+      await moveItem(item, target);
+    });
+  });
+}
+
+async function moveItem(item, newState){
+  const prev = item.state;
+  item.state = newState;            // optimistic
+  render();
+  const card = document.querySelector(`.card[data-id="${item.id}"]`);
+  if(card) card.classList.add('saving');
+  try{
+    const res = await fetch(API+"/api/state", {
+      method:"POST", headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id:item.id, state:newState })
+    });
+    const j = await res.json();
+    if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+    item.state = j.state; render();
+    const c2=document.querySelector(`.card[data-id="${item.id}"]`); if(c2) c2.classList.add('flash-ok');
+    toast(`#${item.id} → ${j.state}`, 'ok');
+  }catch(err){
+    item.state = prev; render();    // rollback
+    const c2=document.querySelector(`.card[data-id="${item.id}"]`); if(c2) c2.classList.add('flash-err');
+    toast(`Failed to move #${item.id}: ${err.message}`, 'err');
+  }
+}
+
+function toast(msg, kind){
+  const t=document.createElement('div'); t.className='toast '+(kind||''); t.textContent=msg;
+  document.getElementById('toast').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, kind==='err'?5000:2600);
+}
+
+function setStatus(kind, text){
+  const d=document.getElementById('statedot'), s=document.getElementById('statetext');
+  d.className='statedot'+(kind==='live'?' live':kind==='err'?' err':'');
+  s.textContent=text;
+}
+
+async function loadData(isRefresh){
+  try{
+    setStatus('', isRefresh?'refreshing…':'connecting…');
+    const res = await fetch(API+"/api/bootstrap");
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||('HTTP '+res.status)); }
+    const data = await res.json();
+    ITEMS = data.items; TYPE_STATES = data.states || TYPE_STATES;
+    buildControls(); render();
+    setStatus('live', 'live · '+new Date(data.pulled).toLocaleTimeString());
+  }catch(err){
+    setStatus('err','offline');
+    document.getElementById('board').innerHTML =
+      `<div class="loading">Could not reach the Kanban server.<br><br>${esc(err.message)}<br><br>Make sure <b>kanban-server.js</b> is running (use <b>Start-Kanban.ps1</b>), then click Refresh.</div>`;
+  }
+}
+
+loadData(false);
+</script>
+<script src="/settings.js"></script>
+</body>
+</html>

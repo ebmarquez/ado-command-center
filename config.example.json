@@ -1,0 +1,27 @@
+{
+  "org": "https://dev.azure.com/your-org",
+  "project": "YourProject",
+  "port": 7421,
+  "staleDays": 30,
+  "wipLimit": 10,
+  "closedStates": ["Done", "Removed", "Closed", "Resolved"],
+  "activeScope": 0,
+  "scopes": [
+    {
+      "name": "My Team",
+      "type": "people",
+      "people": ["alice@contoso.com", "bob@contoso.com"]
+    },
+    {
+      "name": "Saved Query Example",
+      "type": "query",
+      "queryId": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "Area Path Example",
+      "type": "areaPath",
+      "areaPaths": ["YourProject\\Area\\SubArea", "YourProject\\Area\\OtherArea"]
+    }
+  ],
+  "_comment": "Copy to config.json or just run the app — the first-run setup wizard writes this for you. Auth uses AzureAuth (https://aka.ms/AzureAuth); set an optional 'tenant' (id or domain) only for non-Microsoft tenants."
+}

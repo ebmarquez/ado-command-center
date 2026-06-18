@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADO Command Center — Setup</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+    const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff; --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede; --cp-border-strong: #919191; --cp-text: #242424; --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f; --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177,31,75,0.08); --cp-accent-fg: #ffffff; --cp-success: #16a34a;
+  --cp-danger: #dc2626; --cp-warning: #f59e0b; --cp-link: #0078d4; --cp-shadow: 0 18px 48px rgba(0,0,0,0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929; --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747; --cp-border-strong: #5f5f5f; --cp-text: #dedede; --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0; --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253,142,161,0.14); --cp-accent-fg: #1a1a1a; --cp-success: #4ade80;
+  --cp-danger: #f87171; --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-shadow: 0 18px 48px rgba(0,0,0,0.32);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--cp-bg); color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 40px 22px 60px; }
+.brand { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+.tagline { color: var(--cp-text-muted); font-size: 13px; margin-bottom: 26px; }
+.card { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px;
+  padding: 22px 24px; box-shadow: 0 0 2px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.12); margin-bottom: 18px; }
+.step-no { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  border-radius: 50%; background: var(--cp-accent); color: var(--cp-accent-fg); font-size: 12px; font-weight: 700; margin-right: 9px; }
+.step.done .step-no { background: var(--cp-success); }
+.step.locked { opacity: 0.5; pointer-events: none; }
+h2 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; }
+.hint { color: var(--cp-text-muted); font-size: 12px; margin: 0 0 14px 33px; }
+.body { margin-left: 33px; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--cp-text-muted); margin: 12px 0 5px; }
+input, select { width: 100%; background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-radius: 0.625rem; padding: 9px 11px; font-size: 14px; font-family: inherit; }
+input:focus, select:focus { outline: 2px solid var(--cp-accent-soft); border-color: var(--cp-accent); }
+button { background: var(--cp-accent); color: var(--cp-accent-fg); border: none; border-radius: 0.625rem;
+  padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+button:hover { background: var(--cp-accent-hover); }
+button.ghost { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border); }
+button.ghost:hover { border-color: var(--cp-border-strong); background: var(--cp-surface-soft); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.note { font-size: 12px; padding: 10px 12px; border-radius: 0.625rem; margin-top: 12px; }
+.note.ok { background: rgba(22,163,74,0.10); color: var(--cp-success); border: 1px solid var(--cp-success); }
+.note.err { background: rgba(220,38,38,0.08); color: var(--cp-danger); border: 1px solid var(--cp-danger); }
+.note.info { background: var(--cp-surface-soft); color: var(--cp-text-muted); border: 1px solid var(--cp-border); }
+.code-box { font-family: Consolas, "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 2px;
+  background: var(--cp-surface-soft); border: 1px dashed var(--cp-border-strong); border-radius: 10px;
+  padding: 12px 16px; text-align: center; margin: 12px 0; user-select: all; }
+.seg { display: flex; gap: 8px; margin-top: 6px; }
+.seg .opt { flex: 1; text-align: center; border: 1px solid var(--cp-border); border-radius: 0.625rem; padding: 10px;
+  cursor: pointer; font-size: 13px; font-weight: 600; color: var(--cp-text-muted); background: var(--cp-surface); }
+.seg .opt.sel { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+.muted { color: var(--cp-text-soft); font-size: 12px; }
+.pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border); color: var(--cp-text-muted); }
+a { color: var(--cp-link); }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--cp-border);
+  border-top-color: var(--cp-accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+details { margin-top: 14px; } summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--cp-text-muted); }
+.tune { display: flex; gap: 12px; } .tune > div { flex: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">ADO Command Center</div>
+  <div class="tagline">First-run setup — connect to Azure DevOps and choose what your board shows.</div>
+
+  <!-- Step 1: sign in -->
+  <div class="card step" id="step1">
+    <h2><span class="step-no">1</span>Sign in</h2>
+    <p class="hint">Uses <b>AzureAuth</b> (<a href="https://aka.ms/AzureAuth" target="_blank">aka.ms/AzureAuth</a>) and your device's authentication broker to get an Azure DevOps token. Click below — a sign-in prompt may appear the first time, then it refreshes silently.</p>
+    <div class="body" id="signinBody">
+      <button id="signinBtn">Sign in</button>
+      <div id="signinArea"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: org + project -->
+  <div class="card step locked" id="step2">
+    <h2><span class="step-no">2</span>Organization &amp; project</h2>
+    <p class="hint">Pick the Azure DevOps org and project to read work items from.</p>
+    <div class="body">
+      <label>Organization URL</label>
+      <input id="orgUrl" placeholder="https://dev.azure.com/your-org" />
+      <div class="row"><button class="ghost" id="loadProjects">Load projects →</button><span id="orgMsg" class="muted"></span></div>
+      <label>Project</label>
+      <select id="projectSel"><option value="">— sign in and load projects —</option></select>
+    </div>
+  </div>
+
+  <!-- Step 3: scope -->
+  <div class="card step locked" id="step3">
+    <h2><span class="step-no">3</span>What should the board show?</h2>
+    <p class="hint">Define your scope. You can change this later from the dashboard.</p>
+    <div class="body">
+      <div class="seg" id="scopeSeg">
+        <div class="opt sel" data-type="people">People</div>
+        <div class="opt" data-type="query">Saved query</div>
+        <div class="opt" data-type="areaPath">Area path</div>
+      </div>
+      <label>Scope name</label>
+      <input id="scopeName" placeholder="e.g. My Team" value="My Team" />
+
+      <div id="scopePeople" class="scope-pane">
+        <label>Assignee emails (one per line)</label>
+        <textarea id="peopleList" rows="4" style="width:100%;font-family:inherit;font-size:14px;border-radius:.625rem;border:1px solid var(--cp-border);padding:9px 11px;background:var(--cp-surface);color:var(--cp-text)" placeholder="alice@contoso.com&#10;bob@contoso.com"></textarea>
+      </div>
+      <div id="scopeQuery" class="scope-pane" style="display:none">
+        <label>Saved query</label>
+        <select id="querySel"><option value="">— load projects first —</option></select>
+      </div>
+      <div id="scopeArea" class="scope-pane" style="display:none">
+        <label>Area paths <span class="muted">(Ctrl/Cmd-click to select multiple)</span></label>
+        <select id="areaSel" multiple size="8" style="width:100%"><option value="">— load projects first —</option></select>
+      </div>
+
+      <div class="row">
+        <button class="ghost" id="testBtn">Test scope</button>
+        <span id="testMsg" class="muted"></span>
+      </div>
+
+      <details>
+        <summary>Advanced — thresholds &amp; port</summary>
+        <div class="tune" style="margin-top:12px">
+          <div><label>Stale after (days)</label><input id="staleDays" type="number" value="30" /></div>
+          <div><label>WIP limit</label><input id="wipLimit" type="number" value="10" /></div>
+          <div><label>Port</label><input id="port" type="number" value="7421" /></div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="row" style="justify-content:flex-end">
+    <button id="finishBtn" disabled>Save &amp; open dashboard →</button>
+  </div>
+  <div id="finishMsg"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = { signedIn: false, org: "", project: "", scopeType: "people" };
+
+function unlock(stepId){ $(stepId).classList.remove('locked'); }
+function markDone(stepId){ $(stepId).classList.add('done'); }
+
+// ---- Step 1: sign in (AzureAuth broker) ----
+async function refreshMe(){
+  const me = await fetch('/api/me').then(r=>r.json());
+  state.signedIn = me.signedIn;
+  if (me.signedIn){
+    $('signinArea').innerHTML = `<div class="note ok">✓ Signed in as <b>${me.username||'your account'}</b></div>`;
+    $('signinBtn').style.display = 'none';
+    markDone('step1'); unlock('step2');
+    // prefill org if hinted later; nothing yet
+  }
+  return me.signedIn;
+}
+$('signinBtn').onclick = async () => {
+  $('signinBtn').disabled = true;
+  $('signinArea').innerHTML = `<div class="note info"><span class="spinner"></span> Starting sign-in…</div>`;
+  try {
+    const r = await fetch('/api/login/start', { method:'POST' }).then(r=>r.json());
+    if (r.error) throw new Error(r.error);
+    $('signinArea').innerHTML = `<div class="note info">
+      ${r.message||'Complete the sign-in prompt.'}<br>
+      <span class="spinner"></span> Waiting for you to complete sign-in…
+    </div>`;
+    // poll
+    const poll = setInterval(async () => {
+      const s = await fetch('/api/login/status').then(r=>r.json());
+      if (s.signedIn){ clearInterval(poll); await refreshMe(); }
+    }, 2500);
+  } catch(e){
+    $('signinArea').innerHTML = `<div class="note err">${e.message}</div>`;
+    $('signinBtn').disabled = false;
+  }
+};
+
+// ---- Step 2: projects ----
+$('loadProjects').onclick = async () => {
+  const org = $('orgUrl').value.trim();
+  if (!org){ $('orgMsg').textContent = 'Enter an org URL.'; return; }
+  state.org = org;
+  $('orgMsg').innerHTML = '<span class="spinner"></span> loading…';
+  try {
+    const r = await fetch('/api/discover/projects?org='+encodeURIComponent(org)).then(r=>r.json());
+    if (r.error) throw new Error(r.error);
+    const sel = $('projectSel');
+    sel.innerHTML = '<option value="">— select —</option>' + r.projects.map(p=>`<option>${p.name}</option>`).join('');
+    $('orgMsg').textContent = `${r.projects.length} projects`;
+    unlock('step3');
+  } catch(e){ $('orgMsg').innerHTML = `<span style="color:var(--cp-danger)">${e.message}</span>`; }
+};
+$('projectSel').onchange = async () => {
+  state.project = $('projectSel').value;
+  markDone('step2');
+  if (!state.project) return;
+  // pre-load query + area discovery for step 3
+  loadQueries(); loadAreas();
+  updateFinish();
+};
+
+async function loadQueries(){
+  if (!state.org || !state.project) return;
+  $('querySel').innerHTML = '<option>loading…</option>';
+  const r = await fetch(`/api/discover/queries?org=${encodeURIComponent(state.org)}&project=${encodeURIComponent(state.project)}`).then(r=>r.json());
+  $('querySel').innerHTML = '<option value="">— select —</option>' + (r.queries||[]).map(q=>`<option value="${q.id}">${q.path}</option>`).join('');
+}
+async function loadAreas(){
+  if (!state.org || !state.project) return;
+  $('areaSel').innerHTML = '<option disabled>loading…</option>';
+  const r = await fetch(`/api/discover/areas?org=${encodeURIComponent(state.org)}&project=${encodeURIComponent(state.project)}`).then(r=>r.json());
+  $('areaSel').innerHTML = (r.areaPaths||[]).map(a=>`<option>${a}</option>`).join('');
+}
+
+// ---- Step 3: scope type ----
+document.querySelectorAll('#scopeSeg .opt').forEach(opt => opt.onclick = () => {
+  document.querySelectorAll('#scopeSeg .opt').forEach(o=>o.classList.remove('sel'));
+  opt.classList.add('sel');
+  state.scopeType = opt.dataset.type;
+  $('scopePeople').style.display = state.scopeType==='people'?'block':'none';
+  $('scopeQuery').style.display = state.scopeType==='query'?'block':'none';
+  $('scopeArea').style.display = state.scopeType==='areaPath'?'block':'none';
+  updateFinish();
+});
+
+function buildScope(){
+  const name = $('scopeName').value.trim() || 'My Scope';
+  if (state.scopeType==='people'){
+    const people = $('peopleList').value.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+    return { name, type:'people', people };
+  }
+  if (state.scopeType==='query'){
+    return { name, type:'query', queryId: $('querySel').value };
+  }
+  const areaPaths = Array.from($('areaSel').selectedOptions).map(o=>o.value).filter(Boolean);
+  return { name, type:'areaPath', areaPaths };
+}
+function buildConfig(){
+  return {
+    org: state.org, project: state.project,
+    port: parseInt($('port').value)||7421,
+    staleDays: parseInt($('staleDays').value)||30,
+    wipLimit: parseInt($('wipLimit').value)||10,
+    scopes: [buildScope()], activeScope: 0,
+  };
+}
+
+$('testBtn').onclick = async () => {
+  $('testMsg').innerHTML = '<span class="spinner"></span> testing…';
+  try {
+    const r = await fetch('/api/setup/test', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(buildConfig()) }).then(r=>r.json());
+    if (r.error) throw new Error(r.error);
+    $('testMsg').innerHTML = `<span style="color:var(--cp-success);font-weight:600">✓ ${r.count} work items matched</span>`;
+  } catch(e){ $('testMsg').innerHTML = `<span style="color:var(--cp-danger)">${e.message}</span>`; }
+};
+
+function scopeValid(){
+  if (state.scopeType==='people') return $('peopleList').value.trim().length>0;
+  if (state.scopeType==='query') return !!$('querySel').value;
+  return $('areaSel').selectedOptions.length>0;
+}
+function updateFinish(){
+  $('finishBtn').disabled = !(state.signedIn && state.org && state.project && scopeValid());
+}
+['peopleList','querySel','areaSel','scopeName'].forEach(id => { const el=$(id); if(el) el.addEventListener('input', updateFinish); el && el.addEventListener('change', updateFinish); });
+
+$('finishBtn').onclick = async () => {
+  $('finishBtn').disabled = true;
+  $('finishMsg').innerHTML = '<div class="note info"><span class="spinner"></span> Saving…</div>';
+  try {
+    const r = await fetch('/api/setup/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(buildConfig()) }).then(r=>r.json());
+    if (r.error) throw new Error(r.error);
+    $('finishMsg').innerHTML = '<div class="note ok">✓ Saved. Opening dashboard…</div>';
+    setTimeout(()=>{ location.href='/dashboard'; }, 800);
+  } catch(e){ $('finishMsg').innerHTML = `<div class="note err">${e.message}</div>`; $('finishBtn').disabled=false; }
+};
+
+// init
+refreshMe();
+</script>
+</body>
+</html>

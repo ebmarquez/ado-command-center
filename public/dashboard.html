@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADO Command Center</title>
+<script>
+  (() => {
+    // Pre-paint bootstrap: apply saved theme + text size before first render to
+    // avoid a flash. The settings gear (settings.js) manages these values.
+    const savedTheme = localStorage.getItem("acc.theme"); // light | dark | system
+    const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+    const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    let theme;
+    if (savedTheme === "light" || savedTheme === "dark") theme = savedTheme;
+    else if (savedTheme === "system") theme = sysDark ? "dark" : "light";
+    else theme = param || (sysDark ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+    const scale = parseFloat(localStorage.getItem("acc.fontScale"));
+    if (scale && scale !== 1) document.documentElement.style.zoom = String(scale);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff; --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede; --cp-border-strong: #919191; --cp-text: #242424; --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f; --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177,31,75,0.08); --cp-accent-fg: #ffffff; --cp-success: #16a34a;
+  --cp-danger: #dc2626; --cp-warning: #f59e0b; --cp-link: #0078d4; --cp-highlight: rgba(177,31,75,0.12);
+  --cp-shadow: 0 18px 48px rgba(0,0,0,0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929; --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747; --cp-border-strong: #5f5f5f; --cp-text: #dedede; --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0; --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253,142,161,0.14); --cp-accent-fg: #1a1a1a; --cp-success: #4ade80;
+  --cp-danger: #f87171; --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-highlight: rgba(253,142,161,0.12);
+  --cp-shadow: 0 18px 48px rgba(0,0,0,0.32);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--cp-bg); color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.45; }
+header { position: sticky; top: 0; z-index: 30; background: var(--cp-bg-elevated);
+  border-bottom: 1px solid var(--cp-border); padding: 12px 22px; }
+.title-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.meta { color: var(--cp-text-muted); font-size: 12px; }
+.nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.navlink { font-size: 13px; color: var(--cp-link); text-decoration: none; font-weight: 600;
+  border: 1px solid var(--cp-border); border-radius: 0.625rem; padding: 5px 12px; }
+.navlink:hover { border-color: var(--cp-border-strong); }
+.tabs { display: flex; gap: 6px; margin-top: 12px; }
+.tab { font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 0.625rem; cursor: pointer;
+  border: 1px solid var(--cp-border); background: var(--cp-surface); color: var(--cp-text-muted); }
+.tab.active { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+.wrap { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+.statbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.stat { flex: 1 1 150px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px;
+  padding: 14px 16px; box-shadow: 0 0 2px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.12); }
+.stat .n { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.stat .l { font-size: 12px; color: var(--cp-text-muted); margin-top: 3px; }
+.stat.warn .n { color: var(--cp-warning); } .stat.bad .n { color: var(--cp-danger); }
+.stat.ok .n { color: var(--cp-success); }
+.section { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px;
+  padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 0 2px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.12); }
+.section h2 { font-size: 15px; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+.section .sub { font-size: 12px; color: var(--cp-text-muted); margin-bottom: 12px; }
+.pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.pill.bad { background: var(--cp-danger); color: #fff; }
+.pill.warn { background: var(--cp-warning); color: #1a1a1a; }
+.pill.muted { background: var(--cp-surface-soft); color: var(--cp-text-muted); border: 1px solid var(--cp-border); }
+.type-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+  padding: 2px 7px; border-radius: 5px; color: #fff; flex-shrink: 0; }
+.t-Bug { background: #dc2626; } .t-Feature { background: #8250df; } .t-Epic { background: #d4a017; }
+.t-Task { background: #0969da; } .t-PBI { background: #1f883d; } .t-TestCase { background: #6f6f6f; }
+.id-link { font-size: 11px; color: var(--cp-link); text-decoration: none; font-weight: 600; flex-shrink: 0; }
+.id-link:hover { text-decoration: underline; }
+.row { display: flex; align-items: center; gap: 9px; padding: 7px 4px; border-bottom: 1px solid var(--cp-border); }
+.row:last-child { border-bottom: none; }
+.row .rtitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .rmeta { font-size: 11px; color: var(--cp-text-muted); flex-shrink: 0; }
+.age-bad { color: var(--cp-danger); font-weight: 700; }
+.age-warn { color: var(--cp-warning); font-weight: 600; }
+/* hierarchy tree */
+.node { margin: 2px 0; }
+.node-head { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.node-head:hover { background: var(--cp-surface-soft); }
+.twist { width: 14px; text-align: center; color: var(--cp-text-soft); font-size: 11px; flex-shrink: 0; user-select: none; }
+.node-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.node.lvl0 > .node-head .node-title { font-weight: 600; }
+.bar { width: 130px; height: 8px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+  border-radius: 999px; overflow: hidden; flex-shrink: 0; }
+.bar > span { display: block; height: 100%; background: var(--cp-accent); }
+.bar.done > span { background: var(--cp-success); }
+.pct { font-size: 11px; font-weight: 700; width: 64px; text-align: right; flex-shrink: 0; color: var(--cp-text-muted); }
+.children { margin-left: 18px; border-left: 1px solid var(--cp-border); padding-left: 6px; }
+.collapsed > .children { display: none; }
+.empty-flag { font-size: 10px; font-weight: 700; color: var(--cp-warning); border: 1px solid var(--cp-warning);
+  border-radius: 5px; padding: 1px 6px; flex-shrink: 0; }
+.state-mini { font-size: 10px; color: var(--cp-text-soft); border: 1px solid var(--cp-border);
+  border-radius: 5px; padding: 1px 6px; flex-shrink: 0; }
+.assignee-mini { font-size: 11px; color: var(--cp-text-muted); flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* hierarchy drill-down */
+.hpick { min-width: 360px; max-width: 620px; }
+.focus-card { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.focus-card .node-title { flex: 1; min-width: 200px; font-weight: 600; }
+.seg-bar { display: flex; height: 24px; border-radius: 8px; overflow: hidden; border: 1px solid var(--cp-border);
+  background: var(--cp-surface-soft); margin: 12px 0 8px; }
+.seg-bar > span { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+  color: #fff; min-width: 0; }
+.sb-done { background: var(--cp-success); } .sb-resolved { background: var(--cp-link); }
+.sb-prog { background: var(--cp-accent); } .sb-todo { background: var(--cp-border-strong); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip { font-size: 11px; color: var(--cp-text-muted); border: 1px solid var(--cp-border);
+  border-radius: 6px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 6px; }
+.chip b { color: var(--cp-text); font-weight: 700; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--cp-text-muted); margin-top: 2px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+/* drag-to-parent */
+.node-head[draggable="true"], .row[draggable="true"] { cursor: grab; }
+.node-head[draggable="true"]:active, .row[draggable="true"]:active { cursor: grabbing; }
+.drag-handle { color: var(--cp-text-soft); font-size: 12px; cursor: grab; flex-shrink: 0; user-select: none; }
+.dragging { opacity: 0.45; }
+.drop-ok { outline: 2px dashed var(--cp-accent); outline-offset: -2px; background: var(--cp-accent-soft) !important; border-radius: 8px; }
+.dnd-hint { font-size: 12px; color: var(--cp-text-muted); }
+/* state filter switch */
+.seg-toggle { display: inline-flex; border: 1px solid var(--cp-border); border-radius: 0.625rem; overflow: hidden; }
+.segbtn { font-size: 12px; font-weight: 600; padding: 5px 11px; border: none; background: var(--cp-surface);
+  color: var(--cp-text-muted); cursor: pointer; font-family: inherit; }
+.segbtn:not(:last-child) { border-right: 1px solid var(--cp-border); }
+.segbtn.active { background: var(--cp-accent); color: var(--cp-accent-fg); }
+.filter-note { font-size: 11px; color: var(--cp-text-soft); font-style: italic; }
+/* workload */
+.wl-grid { display: flex; flex-direction: column; gap: 12px; }
+.wl { display: flex; align-items: center; gap: 14px; }
+.wl .name { width: 180px; font-weight: 600; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--cp-accent); color: var(--cp-accent-fg);
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.wl .track { flex: 1; display: flex; height: 22px; border-radius: 8px; overflow: hidden; border: 1px solid var(--cp-border); background: var(--cp-surface-soft); }
+.seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+.seg.wip { background: var(--cp-accent); }
+.seg.ns { background: var(--cp-border-strong); }
+.wl .nums { width: 200px; font-size: 12px; color: var(--cp-text-muted); flex-shrink: 0; text-align: right; }
+.over { color: var(--cp-danger); font-weight: 700; }
+.tabpane { display: none; } .tabpane.active { display: block; }
+.loading { padding: 60px; text-align: center; color: var(--cp-text-muted); }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+button.btn { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-radius: 0.625rem; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+button.btn:hover { border-color: var(--cp-border-strong); }
+select { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
+  border-radius: 0.625rem; padding: 6px 10px; font-size: 13px; font-family: inherit; }
+.statedot { width: 8px; height: 8px; border-radius: 50%; background: var(--cp-text-soft); display: inline-block; }
+.statedot.live { background: var(--cp-success); } .statedot.err { background: var(--cp-danger); }
+</style>
+</head>
+<body>
+<header>
+  <div class="title-row">
+    <h1>ADO Command Center</h1>
+    <span class="meta" id="metaLine">Loading…</span>
+    <span class="nav">
+      <span class="statedot" id="statedot"></span>
+      <span class="seg-toggle" id="stateFilter" title="Filter by work-item state">
+        <button class="segbtn active" data-f="active">Active only</button>
+        <button class="segbtn" data-f="hidedone">Hide done</button>
+        <button class="segbtn" data-f="all">Show all</button>
+      </span>
+      <button class="btn" id="refreshBtn">↻ Refresh</button>
+      <span id="settingsSlot"></span>
+      <a class="navlink" href="/" >← Kanban board</a>
+    </span>
+  </div>
+  <div class="tabs" id="tabs">
+    <span class="tab active" data-tab="command">Command Center</span>
+    <span class="tab" data-tab="hierarchy">Hierarchy</span>
+    <span class="tab" data-tab="workload">Workload</span>
+  </div>
+</header>
+<div class="wrap">
+  <div class="tabpane active" id="pane-command"><div class="loading">Loading…</div></div>
+  <div class="tabpane" id="pane-hierarchy"><div class="loading">Loading hierarchy…</div></div>
+  <div class="tabpane" id="pane-workload"><div class="loading">Loading workload…</div></div>
+</div>
+
+<script>
+let RADAR = null, HIER = null, WORK = null, CONFIG = { staleDays: 30, wipLimit: 10 };
+let HIER_PICK = null;
+let FILTER = 'active'; // 'active' | 'hidedone' | 'all'
+const FILTER_LABEL = { active: 'Active only', hidedone: 'Hide done', all: 'Show all' };
+let CLOSED = new Set(); // configured terminal state names (lowercased) — fallback when category is missing
+// Completed / Resolved / Removed — items that are not actionable work.
+function isTerminal(i){
+  const c = i.category;
+  if(c==='Completed' || c==='Resolved' || c==='Removed') return true;
+  return CLOSED.has(String(i.state||'').toLowerCase());
+}
+// Visibility by ADO state category, robust to custom state names.
+function catVisible(cat){
+  if(FILTER==='all') return true;
+  if(cat==='Removed') return false;
+  if(FILTER==='hidedone') return cat!=='Completed';
+  return cat!=='Completed' && cat!=='Resolved'; // active: also hide resolved
+}
+// A tree node is shown if it, or any descendant, is visible.
+function nodeVisible(n){
+  if(catVisible(n.category)) return true;
+  return (n.children||[]).some(nodeVisible);
+}
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const typeClass = t => ({ "Bug":"t-Bug","Feature":"t-Feature","Epic":"t-Epic","Task":"t-Task","Product Backlog Item":"t-PBI","Test Case":"t-TestCase" }[t] || "t-Task");
+const typeShort = t => ({ "Product Backlog Item":"PBI","Test Case":"Test" }[t] || t);
+const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+const ageCls = d => d >= CONFIG.staleDays ? "age-bad" : d >= Math.floor(CONFIG.staleDays/2) ? "age-warn" : "";
+
+function setStatus(kind, text){
+  document.getElementById('statedot').className = 'statedot' + (kind==='live'?' live':kind==='err'?' err':'');
+  document.getElementById('metaLine').textContent = text;
+}
+
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tabpane').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('pane-'+t.dataset.tab).classList.add('active');
+});
+document.getElementById('refreshBtn').onclick = () => loadAll();
+// ---- state filter switch ----
+document.querySelectorAll('#stateFilter .segbtn').forEach(b => b.onclick = () => {
+  if(b.dataset.f === FILTER) return;
+  FILTER = b.dataset.f;
+  document.querySelectorAll('#stateFilter .segbtn').forEach(x => x.classList.toggle('active', x===b));
+  renderCommand(); renderHierarchy();
+});
+
+function itemRow(i, opts){
+  opts = opts || {};
+  const age = `<span class="rmeta ${ageCls(i.ageDays)}">${i.ageDays}d</span>`;
+  const pri = i.priority===1 ? '<span class="pill bad">P1</span>' : '';
+  const drag = opts.drag
+    ? ` draggable="true" ondragstart="startDrag(event,${i.id},'${esc(i.type)}')" ondragend="endDrag(event)"`
+    : '';
+  const handle = opts.drag ? '<span class="drag-handle" title="Drag onto an Epic or Feature">⠿</span>' : '';
+  return `<div class="row"${drag}>
+    ${handle}
+    <span class="type-badge ${typeClass(i.type)}">${esc(typeShort(i.type))}</span>
+    <a class="id-link" href="${i.url}" target="_blank">#${i.id}</a>
+    <span class="rtitle">${esc(i.title)}</span>
+    ${pri}
+    <span class="state-mini">${esc(i.state)}</span>
+    <span class="assignee-mini">${esc(i.assignee||'')}</span>
+    ${age}
+  </div>`;
+}
+
+// ---- command center ----
+function renderCommand(){
+  if(!RADAR){ return; }
+  const pane = document.getElementById('pane-command');
+  const stat = (n,l,cls)=>`<div class="stat ${cls||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  // Radar lists are about actionable work — always exclude completed/resolved/removed.
+  const fP1    = RADAR.highPriNotStarted.filter(i=>!isTerminal(i));
+  const fEmpty = RADAR.emptyFeatures.filter(i=>!isTerminal(i));
+  const fStale = RADAR.stale.filter(i=>!isTerminal(i));
+  const c = { stale: fStale.length, highPriNotStarted: fP1.length, emptyFeatures: fEmpty.length, wipOverload: RADAR.wipOverload.length };
+  const wipNames = RADAR.wipOverload.map(w=>`${esc(w.assignee.split(' ')[0])} (${w.count})`).join(', ') || 'none';
+  const fnote = '';
+  let html = `<div class="statbar">
+    ${stat(c.stale, `stale &gt; ${CONFIG.staleDays}d`, c.stale? 'bad':'ok')}
+    ${stat(c.highPriNotStarted, 'P1 not started', c.highPriNotStarted? 'bad':'ok')}
+    ${stat(c.emptyFeatures, 'features w/ no breakdown', c.emptyFeatures? 'warn':'ok')}
+    ${stat(c.wipOverload, `WIP overload (&gt;${CONFIG.wipLimit})`, c.wipOverload? 'warn':'ok')}
+  </div>`;
+
+  // P1 not started
+  html += `<div class="section"><h2>🚩 P1 not started <span class="pill muted">${fP1.length}</span>${fnote}</h2>
+    <div class="sub">Priority-1 items still in a proposed state — highest leverage to unblock.</div>
+    ${fP1.length ? fP1.map(i=>itemRow(i)).join('') : '<div class="rmeta">None — good.</div>'}</div>`;
+
+  // empty features
+  html += `<div class="section"><h2>🧩 Features with no breakdown <span class="pill muted">${fEmpty.length}</span>${fnote}</h2>
+    <div class="sub">Your features with zero child items — they're shells until decomposed into work.</div>
+    ${fEmpty.length ? fEmpty.map(i=>itemRow(i)).join('') : '<div class="rmeta">None.</div>'}</div>`;
+
+  // WIP overload
+  html += `<div class="section"><h2>🔥 WIP overload <span class="pill muted">${RADAR.wipOverload.length}</span></h2>
+    <div class="sub">People carrying more than ${CONFIG.wipLimit} in-progress items: ${wipNames}.</div>
+    ${RADAR.wipOverload.map(w=>`<div class="row"><span class="avatar">${esc(initials(w.assignee))}</span>
+      <span class="rtitle">${esc(w.assignee)}</span><span class="pill bad">${w.count} in progress</span></div>`).join('') || '<div class="rmeta">None.</div>'}</div>`;
+
+  // stale (top 25)
+  const top = fStale.slice(0,25);
+  html += `<div class="section"><h2>🕸️ Stale items <span class="pill muted">${fStale.length}</span>${fnote}</h2>
+    <div class="sub">No change in ${CONFIG.staleDays}+ days, completed/resolved excluded. Showing oldest ${top.length}. Triage: close, re-prioritize, or act.</div>
+    ${top.map(i=>itemRow(i)).join('')}
+    ${fStale.length>25 ? `<div class="rmeta" style="padding-top:8px">+ ${fStale.length-25} more…</div>`:''}</div>`;
+
+  pane.innerHTML = html;
+}
+
+// ---- hierarchy ----
+function nodeHTML(n, lvl){
+  const allKids = n.children || [];
+  const kids = allKids.filter(nodeVisible);   // honor the state filter
+  const hasKids = kids.length > 0;
+  const pct = n.total ? n.pct : 0;
+  const barCls = pct===100 ? 'bar done' : 'bar';
+  const pctTxt = n.total ? `${pct}% <span style="opacity:.7">(${n.done}/${n.total})</span>` : '';
+  const empty = (n.type==='Feature' && allKids.length===0) ? '<span class="empty-flag">no breakdown</span>' : '';
+  const twist = hasKids ? `<span class="twist">▸</span>` : `<span class="twist"></span>`;
+  const draggable = n.type !== 'Epic'; // anything but an Epic can be re-parented
+  const isTarget = (n.type==='Epic' || n.type==='Feature');
+  const dragAttrs = draggable ? ` draggable="true" ondragstart="startDrag(event,${n.id},'${esc(n.type)}')" ondragend="endDrag(event)"` : '';
+  const dropAttrs = isTarget ? ` ondragover="dragOver(event,${n.id},'${esc(n.type)}')" ondragleave="dragLeave(event)" ondrop="dropOn(event,${n.id},'${esc(n.type)}')"` : '';
+  return `<div class="node lvl${lvl} ${lvl>0?'collapsed':''}">
+    <div class="node-head"${dragAttrs}${dropAttrs} ${hasKids?'onclick="toggleNode(this)"':''}>
+      ${twist}
+      <span class="type-badge ${typeClass(n.type)}">${esc(typeShort(n.type))}</span>
+      <a class="id-link" href="${n.url}" target="_blank" onclick="event.stopPropagation()">#${n.id}</a>
+      <span class="node-title">${esc(n.title)}</span>
+      ${empty}
+      <span class="state-mini">${esc(n.state)}</span>
+      <span class="assignee-mini">${esc(n.assignee)}</span>
+      ${n.total ? `<span class="${barCls}"><span style="width:${pct}%"></span></span><span class="pct">${pctTxt}</span>` : '<span class="pct"></span>'}
+    </div>
+    ${hasKids ? `<div class="children">${kids.map(c=>nodeHTML(c,lvl+1)).join('')}</div>` : ''}
+  </div>`;
+}
+function toggleNode(el){
+  const node = el.parentElement;
+  node.classList.toggle('collapsed');
+  const tw = el.querySelector('.twist');
+  if(tw) tw.textContent = node.classList.contains('collapsed') ? '▸' : '▾';
+}
+function renderHierarchy(){
+  if(!HIER) return;
+  const pane = document.getElementById('pane-hierarchy');
+  const epics = HIER.tree.filter(n=>n.type==='Epic').filter(nodeVisible);
+  const feats = HIER.tree.filter(n=>n.type==='Feature').filter(nodeVisible);
+  const other = HIER.other.filter(i=>!isTerminal(i));
+  const selectable = collectSelectable(HIER.tree);
+  const picked = HIER_PICK!=null ? findNode(HIER.tree, HIER_PICK) : null;
+  const opts = ['<option value="">All Epics &amp; Features (overview)</option>'].concat(
+    selectable.map(s=>`<option value="${s.id}" ${picked && picked.id===s.id?'selected':''}>${'\u00A0\u00A0\u00A0'.repeat(s.depth)}${esc(typeShort(s.type))} #${s.id} · ${esc(s.title)}</option>`)
+  ).join('');
+  const metaTxt = picked
+    ? `${picked.total} downstream item${picked.total===1?'':'s'} under this ${esc(typeShort(picked.type).toLowerCase())}`
+    : `${epics.length} epics · ${feats.length} top features · ${other.length} other items${HIER.capped?' · ⚠ capped':''}`;
+  const fnote = FILTER!=='all' ? ` <span class="filter-note">· ${FILTER_LABEL[FILTER]}</span>` : '';
+  let html = `<div class="toolbar">
+    <select class="hpick" onchange="pickHierarchy(this.value)" title="Focus on one Epic or Feature">${opts}</select>
+    <button class="btn" onclick="expandAll(true)">Expand all</button>
+    <button class="btn" onclick="expandAll(false)">Collapse all</button>
+    <span class="meta">${metaTxt}${fnote}</span>
+    <span class="dnd-hint">⠿ Drag a task, bug or feature onto an Epic or Feature to set its parent.</span>
+  </div>`;
+
+  if(picked){
+    html += focusHTML(picked);
+    pane.innerHTML = html;
+    expandAll(true);
+    return;
+  }
+
+  html += `<div class="section"><h2>Epics</h2><div class="sub">Count-based rollup over all descendants (any assignee). Click rows to expand.</div>
+    ${epics.map(n=>nodeHTML(n,0)).join('') || '<div class="rmeta">No epics.</div>'}</div>`;
+  html += `<div class="section"><h2>Top-level Features</h2><div class="sub">Features not under one of your epics.</div>
+    ${feats.map(n=>nodeHTML(n,0)).join('') || '<div class="rmeta">None.</div>'}</div>`;
+  if(other.length){
+    html += `<div class="section"><h2>Other items <span class="pill muted">${other.length}</span></h2>
+      <div class="sub">Open items not under a team-owned epic/feature — loose tasks, bugs, items under others' features. Completed/resolved excluded.</div>
+      ${other.slice(0,40).map(i=>itemRow(i,{drag:true})).join('')}
+      ${other.length>40?`<div class="rmeta" style="padding-top:8px">+ ${other.length-40} more…</div>`:''}</div>`;
+  }
+  pane.innerHTML = html;
+}
+// Collect every Epic/Feature in the tree (with depth) for the focus picker.
+function collectSelectable(tree){
+  const out = [];
+  (function walk(ns, depth){
+    for(const n of ns){
+      if(n.type==='Epic' || n.type==='Feature') out.push({ id:n.id, type:n.type, title:n.title, depth });
+      walk(n.children||[], depth+1);
+    }
+  })(tree, 0);
+  return out;
+}
+function findNode(tree, id){
+  let hit = null;
+  (function walk(ns){ for(const n of ns){ if(hit) return; if(n.id===id){ hit=n; return; } walk(n.children||[]); } })(tree);
+  return hit;
+}
+// Aggregate all descendants of a node by work-item type and by state category.
+function descendantStats(node){
+  const byType = {};
+  const byCat = { Completed:0, Resolved:0, InProgress:0, Proposed:0, Removed:0, Other:0 };
+  (function walk(n){
+    for(const c of n.children||[]){
+      byType[c.type] = (byType[c.type]||0) + 1;
+      const cat = c.category || 'Other';
+      if(byCat[cat]==null) byCat.Other++; else byCat[cat]++;
+      walk(c);
+    }
+  })(node);
+  return { byType, byCat };
+}
+function pickHierarchy(v){
+  HIER_PICK = v ? Number(v) : null;
+  renderHierarchy();
+}
+// ---- drag-to-parent ----
+let DRAG = null; // { id, type, descendants:Set }
+function startDrag(ev, id, type){
+  const node = HIER ? findNode(HIER.tree, id) : null;
+  const descendants = new Set();
+  if(node) (function w(n){ for(const c of n.children||[]){ descendants.add(c.id); w(c); } })(node);
+  DRAG = { id, type, descendants };
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(id)); } catch {}
+  const head = ev.target.closest('.node-head, .row');
+  if(head) head.classList.add('dragging');
+  ev.stopPropagation();
+}
+function endDrag(ev){
+  DRAG = null;
+  document.querySelectorAll('.dragging').forEach(e=>e.classList.remove('dragging'));
+  document.querySelectorAll('.drop-ok').forEach(e=>e.classList.remove('drop-ok'));
+}
+function canDrop(targetId, targetType){
+  if(!DRAG) return false;
+  if(targetType!=='Epic' && targetType!=='Feature') return false;
+  if(targetId===DRAG.id) return false;                 // onto itself
+  if(DRAG.descendants && DRAG.descendants.has(targetId)) return false; // would create a cycle
+  return true;
+}
+function dragOver(ev, targetId, targetType){
+  if(!canDrop(targetId, targetType)) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('drop-ok');
+}
+function dragLeave(ev){ ev.currentTarget.classList.remove('drop-ok'); }
+function dropOn(ev, targetId, targetType){
+  if(!canDrop(targetId, targetType)) return;
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drop-ok');
+  const childId = DRAG.id;
+  doReparent(childId, targetId);
+}
+async function doReparent(childId, parentId){
+  setStatus('', `linking #${childId} → #${parentId}…`);
+  try {
+    const r = await fetch('/api/parent', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ childId, parentId })
+    });
+    let j = null; try { j = await r.json(); } catch {}
+    if(!r.ok || (j && j.error)) throw new Error((j && j.error) || `HTTP ${r.status}`);
+    HIER = await fetchJSON('/api/hierarchy');
+    renderHierarchy();
+    setStatus('live', j && j.unchanged ? `#${childId} already under #${parentId}` : `linked #${childId} under #${parentId}`);
+  } catch(e){
+    setStatus('err', `couldn't link #${childId}`);
+    alert(`Couldn't set parent of #${childId} → #${parentId}:\n\n${e.message}`);
+  }
+}
+function focusHTML(node){
+  const { byType, byCat } = descendantStats(node);
+  const pct = node.total ? node.pct : 0;
+  const todo = byCat.Proposed + byCat.Other;
+  const seg = (n, cls, label) => n ? `<span class="${cls}" style="flex:${n} 0 0" title="${label}: ${n}">${n}</span>` : '';
+  const active = byCat.Completed + byCat.Resolved + byCat.InProgress + todo;
+  const bar = active ? `<div class="seg-bar">
+      ${seg(byCat.Completed,'sb-done','Completed')}
+      ${seg(byCat.Resolved,'sb-resolved','Resolved')}
+      ${seg(byCat.InProgress,'sb-prog','In progress')}
+      ${seg(todo,'sb-todo','Not started')}
+    </div>
+    <div class="legend">
+      <span><i class="sb-done"></i>${byCat.Completed} completed</span>
+      ${byCat.Resolved?`<span><i class="sb-resolved"></i>${byCat.Resolved} resolved</span>`:''}
+      <span><i class="sb-prog"></i>${byCat.InProgress} in progress</span>
+      <span><i class="sb-todo"></i>${todo} not started</span>
+      ${byCat.Removed?`<span class="muted">${byCat.Removed} removed (excluded)</span>`:''}
+    </div>` : '<div class="rmeta">No downstream items linked yet.</div>';
+  const typeChips = Object.entries(byType).sort((a,b)=>b[1]-a[1])
+    .map(([t,c])=>`<span class="chip"><span class="type-badge ${typeClass(t)}">${esc(typeShort(t))}</span><b>${c}</b></span>`).join('') || '';
+  return `<div class="section">
+    <div class="focus-card" ondragover="dragOver(event,${node.id},'${esc(node.type)}')" ondragleave="dragLeave(event)" ondrop="dropOn(event,${node.id},'${esc(node.type)}')">
+      <span class="type-badge ${typeClass(node.type)}">${esc(typeShort(node.type))}</span>
+      <a class="id-link" href="${node.url}" target="_blank">#${node.id}</a>
+      <span class="node-title">${esc(node.title)}</span>
+      <span class="state-mini">${esc(node.state)}</span>
+      <span class="assignee-mini">${esc(node.assignee||'')}</span>
+      <span class="pct">${node.total?`${pct}% (${node.done}/${node.total})`:''}</span>
+    </div>
+    ${bar}
+    ${typeChips?`<div class="chips" style="margin-top:10px">${typeChips}</div>`:''}
+  </div>
+  <div class="section">
+    <h2>Downstream work <span class="pill muted">${node.total}</span></h2>
+    <div class="sub">Every feature, task and bug linked under this ${esc(typeShort(node.type).toLowerCase())}, with current state and owner.${FILTER!=='all'?` <span class="filter-note">Filter: ${FILTER_LABEL[FILTER]}.</span>`:''}</div>
+    ${(()=>{ const vk=(node.children||[]).filter(nodeVisible); return vk.length?vk.map(c=>nodeHTML(c,0)).join(''):'<div class="rmeta">No matching child items for this filter.</div>'; })()}
+  </div>`;
+}
+function expandAll(on){
+  document.querySelectorAll('#pane-hierarchy .node').forEach(n=>{
+    if(!n.querySelector(':scope > .children')) return;
+    n.classList.toggle('collapsed', !on);
+    const tw = n.querySelector(':scope > .node-head .twist');
+    if(tw) tw.textContent = on ? '▾' : '▸';
+  });
+}
+
+// ---- workload ----
+function renderWorkload(){
+  if(!WORK) return;
+  const pane = document.getElementById('pane-workload');
+  const maxTotal = Math.max(...WORK.people.map(p=>p.total), 1);
+  let html = `<div class="section"><h2>Workload by person</h2>
+    <div class="sub">Bar width = share of total load. Pink = in progress (WIP), grey = not started. Limit ${CONFIG.wipLimit} WIP.</div>
+    <div class="wl-grid">`;
+  for(const p of WORK.people){
+    const wPct = Math.round(p.wip / maxTotal * 100);
+    const nsPct = Math.round(p.notStarted / maxTotal * 100);
+    html += `<div class="wl">
+      <span class="name"><span class="avatar">${esc(initials(p.assignee))}</span>${esc(p.assignee)}</span>
+      <span class="track">
+        <span class="seg wip" style="width:${wPct}%" title="${p.wip} in progress">${p.wip||''}</span>
+        <span class="seg ns" style="width:${nsPct}%" title="${p.notStarted} not started">${p.notStarted||''}</span>
+      </span>
+      <span class="nums">total ${p.total} · wip <span class="${p.overloaded?'over':''}">${p.wip}</span> · stale ${p.stale}</span>
+    </div>`;
+  }
+  html += `</div></div>`;
+  // per-person type mix
+  html += `<div class="section"><h2>Type mix</h2><div class="sub">What kind of work each person holds.</div>`;
+  for(const p of WORK.people){
+    const mix = Object.entries(p.byType).sort((a,b)=>b[1]-a[1])
+      .map(([t,c])=>`<span class="state-mini">${esc(typeShort(t))} ${c}</span>`).join(' ');
+    html += `<div class="row"><span class="avatar">${esc(initials(p.assignee))}</span>
+      <span class="rtitle">${esc(p.assignee)}</span><span style="display:flex;gap:5px;flex-wrap:wrap">${mix}</span></div>`;
+  }
+  html += `</div>`;
+  pane.innerHTML = html;
+}
+
+async function fetchJSON(path){
+  const r = await fetch(path);
+  let j = null;
+  try { j = await r.json(); } catch { /* non-JSON body */ }
+  if(!r.ok || (j && j.error)){
+    const msg = (j && j.error) ? j.error : `HTTP ${r.status}`;
+    const e = new Error(msg); e.status = r.status; e.endpoint = path; throw e;
+  }
+  return j;
+}
+
+async function loadAll(){
+  setStatus('', 'loading…');
+  try {
+    const [cfg, radar, hier, work] = await Promise.all([
+      fetchJSON('/api/config'),
+      fetchJSON('/api/radar'),
+      fetchJSON('/api/hierarchy'),
+      fetchJSON('/api/workload'),
+    ]);
+    CONFIG = cfg; RADAR = radar; HIER = hier; WORK = work;
+    CLOSED = new Set((cfg.closedStates||[]).map(s=>String(s).toLowerCase()));
+    renderCommand(); renderHierarchy(); renderWorkload();
+    setStatus('live', `live · ${new Date(radar.pulled).toLocaleTimeString()} · stale≥${cfg.staleDays}d · WIP limit ${cfg.wipLimit}`);
+  } catch(err){
+    setStatus('err','error');
+    const isAuth = /auth|sign[- ]?in|expired|token/i.test(err.message || '');
+    const hint = isAuth
+      ? `Your Azure DevOps sign-in expired. Open <b>/setup</b> and click Sign in (or run <b>azureauth ado token</b>), then click Refresh — no server restart needed.`
+      : `The server returned an error${err.endpoint?` from <code>${esc(err.endpoint)}</code>`:''}. If this persists, restart with <b>.\\Start-Kanban.ps1 -Restart</b>.`;
+    document.querySelectorAll('.tabpane').forEach(p=>p.innerHTML =
+      `<div class="loading"><b>Couldn't load data.</b><br><br>${esc(err.message)}<br><br>${hint}</div>`);
+  }
+}
+loadAll();
+</script>
+<script src="/settings.js"></script>
+</body>
+</html>

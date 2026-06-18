@@ -1,0 +1,16 @@
+# Per-user config and cached auth — never commit these
+config.json
+.token-cache.json
+
+# Snapshot history is local
+snapshots/*.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.local
