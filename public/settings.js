@@ -71,6 +71,8 @@
     .acc-add button { flex: 0 0 auto; width: auto; padding: 6px 12px; margin-top: 0; }
     .acc-hint { font-size: 11px; color: var(--cp-text-muted); margin-top: 6px; }
     .acc-hint.err { color: var(--cp-danger, #d33); }
+    .acc-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--cp-text); font-weight: 400; cursor: pointer; }
+    .acc-toggle input { width: auto; margin: 0; cursor: pointer; }
     .acc-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--cp-border-strong);
       border-top-color: var(--cp-accent); border-radius: 50%; animation: accspin 0.7s linear infinite; vertical-align: -2px; margin-right: 6px; }
     @keyframes accspin { to { transform: rotate(360deg); } }
@@ -109,6 +111,11 @@
         <button data-v="1.15">Large</button>
         <button data-v="1.3">XL</button>
       </div>
+    </div>
+    <div class="acc-row" id="accAutostartRow" style="display:none">
+      <label>Start at login</label>
+      <label class="acc-toggle"><input type="checkbox" id="accAutostart" /> <span>Launch the tray app when I sign in to Windows</span></label>
+      <div class="acc-hint" id="accAutostartHint"></div>
     </div>
     <div class="acc-row">
       <label>Area paths (work-item scope)</label>
@@ -233,6 +240,38 @@
   const peopleHint = panel.querySelector("#accPeopleHint");
   let people = [];         // selected emails
   let peopleAvail = [];    // [{email,name}] discovered assignees
+
+  const autostartRow = panel.querySelector("#accAutostartRow");
+  const autostart = panel.querySelector("#accAutostart");
+  const autostartHint = panel.querySelector("#accAutostartHint");
+  function setAutostartHint(msg, isErr) { autostartHint.textContent = msg || ""; autostartHint.classList.toggle("err", !!isErr); }
+
+  async function loadAutostart() {
+    try {
+      const r = await fetch("/api/autostart").then((x) => x.json());
+      if (!r.supported) { autostartRow.style.display = "none"; return; }
+      autostartRow.style.display = "";
+      autostart.checked = !!r.enabled;
+      setAutostartHint("");
+    } catch { autostartRow.style.display = "none"; }
+  }
+  autostart.addEventListener("change", async () => {
+    const want = autostart.checked;
+    autostart.disabled = true;
+    setAutostartHint("Saving…");
+    try {
+      const r = await fetch("/api/autostart", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: want }),
+      }).then((x) => x.json());
+      if (r.error) throw new Error(r.error);
+      autostart.checked = !!r.enabled;
+      setAutostartHint(r.enabled ? "Will launch at sign-in." : "Auto-start disabled.");
+    } catch (e) {
+      autostart.checked = !want;
+      setAutostartHint(e.message || "Couldn't update.", true);
+    } finally { autostart.disabled = false; }
+  });
 
   function leaf(p) { const s = String(p).split("\\"); return s[s.length - 1] || p; }
   function setHint(msg, isErr) { areaHint.textContent = msg || ""; areaHint.classList.toggle("err", !!isErr); }
@@ -360,6 +399,7 @@
     markSeg("font", getFont());
     refreshAccount();
     loadAreas();
+    loadAutostart();
     panel.hidden = false;
   }
   function close() {

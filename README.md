@@ -38,9 +38,13 @@ computer, no server to host, no secrets to store.
 - **Flexible scopes** — define "what the board shows" as a people list, an ADO
   saved query, or an area path. Switch or add scopes anytime.
 - **Daily snapshots** — optional history capture for future trend charts.
+- **Tray app** — runs from the Windows system tray (no console window). Tray
+  menu opens the board/dashboard in a chromeless Edge app-window, restarts the
+  server, or quits. Optional auto-start at login. See *Run as a tray app*.
 - **Settings menu** — a ⚙ gear on both the board and the dashboard for
   **theme** (Light / Dark / System), **text size** (Small / Default / Large / XL),
-  an **account** sign-in/out trigger, and an **Area paths** editor that switches the
+  a **Start at login** toggle (Windows tray app), an **account** sign-in/out
+  trigger, and an **Area paths** editor that switches the
   board to a locally-managed area-path scope (add/remove paths, save, reload — no
   ADO query editing). The area-path editor also takes an optional **people** filter
   (by assignee email) so the scope is *items in those area paths **and** assigned to
@@ -82,6 +86,32 @@ setup and goes straight to the board.
 
 > Not on Windows? Run it directly: `npm install && npm start`, then open the
 > launch link the server prints in the terminal.
+
+## Run as a tray app (recommended)
+
+Tired of keeping a PowerShell window open? Install the tray app so the Command
+Center runs from the **Windows system tray** — no console window to close by
+accident.
+
+```powershell
+cd ado-command-center
+./Install.ps1
+```
+
+This installs dependencies and creates Desktop, Start-Menu, and Startup
+shortcuts that launch the tray with **no console window** (via
+`Launch-CommandCenter.vbs`). The tray icon's menu gives you:
+
+- **Open Board** / **Open Dashboard** — open in a chromeless Edge app-window
+  (falls back to your default browser), already authenticated.
+- **Restart server** — restart the local server in place.
+- **Quit** — stop the server and exit.
+
+**Auto-start at login** is on by default. Toggle it anytime from the Settings
+(⚙) panel ("Start at login"), or install without it via `./Install.ps1
+-NoStartup`. Remove the shortcuts with `./Uninstall.ps1`.
+
+`./Start-Kanban.ps1` still works for a console/dev run.
 
 ## How it works
 
@@ -132,10 +162,14 @@ first.
 
 | Command | What it does |
 |---------|--------------|
+| `./Install.ps1` | Install deps + create tray-app shortcuts (Desktop / Start Menu / Startup) |
+| `./Install.ps1 -NoStartup` | Install without launching at sign-in |
+| `./Uninstall.ps1` | Remove the tray-app shortcuts |
 | `./Start-Kanban.ps1` | Install deps (first run), start server, open the launch link |
 | `./Start-Kanban.ps1 -Restart` | Stop a running instance and start fresh |
 | `./Start-Kanban.ps1 -NoBrowser` | Start without opening a browser |
 | `npm start` | Start the server directly |
+| `node command-center-tray.js` | Start the tray app directly (no console window when launched via the `.vbs`) |
 | `node snapshot.js` | Capture a daily snapshot |
 
 ## Security & privacy

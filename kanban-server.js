@@ -23,6 +23,56 @@ const LAUNCH_TOKEN = crypto.randomBytes(32).toString("hex");
 const SESSION_COOKIE = "acc_session";
 const sessions = new Set();
 
+// ---- Windows "start at login" shortcut (toggled from Settings) --------------
+// A .lnk in the user's Startup folder that launches the tray host hidden via
+// Launch-CommandCenter.vbs. Windows-only; no-ops elsewhere.
+function startupLnkPath() {
+  const appData = process.env.APPDATA;
+  if (!appData) return null;
+  return path.join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "ADO Command Center.lnk");
+}
+function autostartSupported() {
+  return process.platform === "win32" && !!startupLnkPath();
+}
+function autostartEnabled() {
+  const lnk = startupLnkPath();
+  try { return !!lnk && fs.existsSync(lnk); } catch { return false; }
+}
+function setAutostart(enabled) {
+  return new Promise((resolve, reject) => {
+    if (!autostartSupported()) return reject(new Error("Start at login is only supported on Windows."));
+    const lnk = startupLnkPath();
+    if (!enabled) {
+      try { if (fs.existsSync(lnk)) fs.unlinkSync(lnk); return resolve(false); }
+      catch (e) { return reject(e); }
+    }
+    const vbs = path.join(__dirname, "Launch-CommandCenter.vbs");
+    const ico = path.join(__dirname, "command-center.ico");
+    const wscript = path.join(process.env.WINDIR || "C:\\Windows", "System32", "wscript.exe");
+    const psq = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+    const script = [
+      "$s = New-Object -ComObject WScript.Shell",
+      `$l = $s.CreateShortcut(${psq(lnk)})`,
+      `$l.TargetPath = ${psq(wscript)}`,
+      `$l.Arguments = ${psq('"' + vbs + '"')}`,
+      `$l.WorkingDirectory = ${psq(__dirname)}`,
+      "$l.Description = 'ADO Command Center (tray app)'",
+      `if (Test-Path ${psq(ico)}) { $l.IconLocation = ${psq(ico + ",0")} }`,
+      "$l.Save()",
+    ].join("\r\n");
+    const os = require("os");
+    const tmp = path.join(os.tmpdir(), `acc-autostart-${crypto.randomBytes(6).toString("hex")}.ps1`);
+    const { execFile } = require("child_process");
+    try { fs.writeFileSync(tmp, script, "utf8"); }
+    catch (e) { return reject(e); }
+    execFile("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", tmp], (err) => {
+      try { fs.unlinkSync(tmp); } catch {}
+      if (err) return reject(err);
+      resolve(true);
+    });
+  });
+}
+
 // ---- mutable runtime state -------------------------------------------------
 let CONFIG = cfgMod.load();           // null until setup completes
 let auth = new Auth(CONFIG ? { tenant: CONFIG.tenant } : {});
@@ -422,7 +472,11 @@ const server = http.createServer(async (req, res) => {
       if (token && crypto.timingSafeEqual(Buffer.from(token.padEnd(64).slice(0,64)), Buffer.from(LAUNCH_TOKEN))) {
         const sid = crypto.randomBytes(24).toString("hex");
         sessions.add(sid);
-        const dest = CONFIG ? "/" : "/setup";
+        // Honor an optional local ?next= path (e.g. the tray "Open Dashboard"
+        // menu) once configured; reject absolute/protocol-relative URLs.
+        const next = url.searchParams.get("next");
+        const safeNext = next && /^\/(?!\/)/.test(next) ? next : null;
+        const dest = CONFIG ? (safeNext || "/") : "/setup";
         return send(res, 302, "", "text/plain", {
           "Set-Cookie": `${SESSION_COOKIE}=${sid}; HttpOnly; SameSite=Lax; Path=/`,
           "Location": dest,
@@ -430,6 +484,9 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 401, "<h3>Invalid or missing launch token.</h3>Use the link printed in the terminal.", "text/html");
     }
+
+    // --- unauthenticated health probe (used by the tray single-instance guard) ---
+    if (p === "/api/health") return send(res, 200, { ok: true });
 
     // --- everything below requires a session ---
     if (!isAuthed(req)) {
@@ -554,7 +611,18 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     }
 
-    // --- data APIs (need config) ---
+    // --- "start at login" toggle (Windows tray app) ---
+    if (p === "/api/autostart" && req.method === "GET") {
+      return send(res, 200, { supported: autostartSupported(), enabled: autostartEnabled() });
+    }
+    if (p === "/api/autostart" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      try {
+        const enabled = await setAutostart(!!body.enabled);
+        return send(res, 200, { supported: autostartSupported(), enabled });
+      } catch (e) { return send(res, 400, { error: e.message }); }
+    }
+
     if (p.startsWith("/api/") && !CONFIG) return send(res, 409, { error: "not configured", hint: "complete setup at /setup" });
 
     if (p === "/api/config") return send(res, 200, { staleDays: CONFIG.staleDays, wipLimit: CONFIG.wipLimit, org: CONFIG.org, project: CONFIG.project, scopes: (CONFIG.scopes || []).map((s) => s.name), activeScope: CONFIG.activeScope, closedStates: CONFIG.closedStates || [] });
@@ -602,18 +670,30 @@ server.on("error", (err) => {
   console.error("  [server error]", (err && err.message) || err);
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  const link = `http://localhost:${PORT}/auth?token=${LAUNCH_TOKEN}`;
-  console.log("\n  ADO Command Center");
-  console.log("  ------------------");
-  if (!CONFIG) console.log("  First run — you'll be guided through setup.");
-  console.log("  Open this link (contains your one-time launch token):\n");
-  console.log("  " + link + "\n");
-  console.log("  Keep this terminal open. Press Ctrl+C to stop.\n");
-  if (process.env.ACC_OPEN_BROWSER === "1") {
-    const { exec } = require("child_process");
-    const cmd = process.platform === "win32" ? `start "" "${link}"`
-      : process.platform === "darwin" ? `open "${link}"` : `xdg-open "${link}"`;
-    exec(cmd, { shell: true }, () => {});
-  }
-});
+function start(port = PORT) {
+  server.listen(port, "127.0.0.1", () => {
+    const link = `http://localhost:${port}/auth?token=${LAUNCH_TOKEN}`;
+    console.log("\n  ADO Command Center");
+    console.log("  ------------------");
+    if (!CONFIG) console.log("  First run — you'll be guided through setup.");
+    console.log("  Open this link (contains your one-time launch token):\n");
+    console.log("  " + link + "\n");
+    console.log("  Keep this terminal open. Press Ctrl+C to stop.\n");
+    if (process.env.ACC_OPEN_BROWSER === "1") {
+      const { exec } = require("child_process");
+      const cmd = process.platform === "win32" ? `start "" "${link}"`
+        : process.platform === "darwin" ? `open "${link}"` : `xdg-open "${link}"`;
+      exec(cmd, { shell: true }, () => {});
+    }
+  });
+  return server;
+}
+
+// Embeddable: the tray host (command-center-tray.js) requires this module and
+// calls start() in-process so it can read LAUNCH_TOKEN. Running the file
+// directly (node kanban-server.js / Start-Kanban.ps1) still starts the server.
+module.exports = { start, server, PORT, LAUNCH_TOKEN };
+
+if (require.main === module) {
+  start(PORT);
+}
