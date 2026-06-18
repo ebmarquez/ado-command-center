@@ -30,6 +30,11 @@ const TOKEN = serverModule.LAUNCH_TOKEN;
 const BASE_URL = `http://localhost:${PORT}`;
 const ICON = path.join(HERE, "command-center.ico");
 
+// Silent mode (used by the Startup shortcut): start the server + tray icon but
+// do NOT pop a window on launch — so auto-start at login isn't intrusive. The
+// user opens a window from the tray menu when they want one.
+const SILENT = process.env.ACC_SILENT === "1" || process.argv.includes("--silent");
+
 const EDGE = [
   path.join(process.env["ProgramFiles"] || "", "Microsoft", "Edge", "Application", "msedge.exe"),
   path.join(process.env["ProgramFiles(x86)"] || "", "Microsoft", "Edge", "Application", "msedge.exe"),
@@ -67,40 +72,47 @@ function restartServer() {
   });
 }
 
-function authUrl(subPath = "") {
+function authUrl(subPath = "", token = TOKEN) {
   // /auth sets the session cookie, then redirects to ?next= (a local path).
   const next = subPath && subPath.startsWith("/") ? subPath : "/";
-  return `${BASE_URL}/auth?token=${TOKEN}&next=${encodeURIComponent(next)}`;
+  return `${BASE_URL}/auth?token=${token}&next=${encodeURIComponent(next)}`;
+}
+
+function spawnWindow(url) {
+  try {
+    if (EDGE) spawn(EDGE, [`--app=${url}`], { detached: true, stdio: "ignore" }).unref();
+    else spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+  } catch {
+    spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+  }
 }
 
 function openApp(subPath = "") {
   if (process.env.ACC_NO_OPEN === "1") return; // test hook: suppress window
-  const target = authUrl(subPath);
+  spawnWindow(authUrl(subPath));
+}
+
+// Read the live launch token written by whichever server process is running,
+// so a second instance can still open an AUTHENTICATED window.
+function readLiveToken() {
   try {
-    if (EDGE) {
-      spawn(EDGE, [`--app=${target}`], { detached: true, stdio: "ignore" }).unref();
-    } else {
-      spawn("cmd", ["/c", "start", "", target], { detached: true, stdio: "ignore" }).unref();
-    }
-  } catch {
-    spawn("cmd", ["/c", "start", "", target], { detached: true, stdio: "ignore" }).unref();
-  }
+    const f = serverModule.tokenFilePath ? serverModule.tokenFilePath(PORT)
+      : path.join(require("os").tmpdir(), `acc-launch-${PORT}.json`);
+    const j = JSON.parse(fs.readFileSync(f, "utf8"));
+    return j && j.token;
+  } catch { return null; }
 }
 
 // ---- single-instance guard -------------------------------------------------
-// If a server is already listening (another tray instance), just open the
-// board and exit without creating a duplicate tray icon. Note: a server
-// started by an OLDER process uses a DIFFERENT launch token, so we can't build
-// an authenticated link for it here — open the bare board URL and let the
-// existing instance's own session/login handle auth.
+// If a server is already listening (another tray instance), just open ONE
+// authenticated board window and exit without creating a duplicate tray icon.
 (async function main() {
   if (await pingServer()) {
-    const bare = process.env.ACC_NO_OPEN === "1" ? null : `${BASE_URL}/`;
-    if (bare) {
-      try {
-        if (EDGE) spawn(EDGE, [`--app=${bare}`], { detached: true, stdio: "ignore" }).unref();
-        else spawn("cmd", ["/c", "start", "", bare], { detached: true, stdio: "ignore" }).unref();
-      } catch { spawn("cmd", ["/c", "start", "", bare], { detached: true, stdio: "ignore" }).unref(); }
+    if (!SILENT && process.env.ACC_NO_OPEN !== "1") {
+      const tok = readLiveToken();
+      // Prefer an authenticated link via the running instance's live token;
+      // fall back to the bare URL only if the token file is unavailable.
+      spawnWindow(tok ? authUrl("/", tok) : `${BASE_URL}/`);
     }
     process.exit(0);
   }
@@ -162,9 +174,8 @@ function openApp(subPath = "") {
       });
       systray.onError((err) => {
         console.error("systray error:", err && err.message);
-        openApp("/");
       });
-      openApp("/");
+      if (!SILENT) openApp("/");
     })
     .catch((err) => {
       // Tray helper failed to start. Fall back to opening the board so the

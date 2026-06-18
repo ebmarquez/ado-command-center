@@ -66,11 +66,13 @@ $desktopLnk  = Join-Path ([Environment]::GetFolderPath('Desktop')) "$name.lnk"
 $startLnk    = Join-Path ([Environment]::GetFolderPath('Programs')) "$name.lnk"
 $startupLnk  = Join-Path ([Environment]::GetFolderPath('Startup')) "$name.lnk"
 
-function New-Lnk([string]$path) {
+function New-Lnk([string]$path, [string]$extraArgs = '') {
   $shell = New-Object -ComObject WScript.Shell
   $lnk = $shell.CreateShortcut($path)
   $lnk.TargetPath       = $wscript
-  $lnk.Arguments        = '"' + $vbs + '"'
+  $args = '"' + $vbs + '"'
+  if ($extraArgs) { $args = $args + ' ' + $extraArgs }
+  $lnk.Arguments        = $args
   $lnk.WorkingDirectory = $here
   $lnk.WindowStyle      = 1
   $lnk.Description       = 'ADO Command Center (tray app)'
@@ -82,7 +84,8 @@ function New-Lnk([string]$path) {
 Write-Host 'Creating launchers...' -ForegroundColor Cyan
 if (-not $NoDesktop)   { New-Lnk $desktopLnk }
 if (-not $NoStartMenu) { New-Lnk $startLnk }
-if (-not $NoStartup)   { New-Lnk $startupLnk; Write-Host '  (will launch at sign-in — toggle later in Settings)' -ForegroundColor DarkGray }
+# Startup launch is silent (tray icon only, no window) so login isn't intrusive.
+if (-not $NoStartup)   { New-Lnk $startupLnk '--silent'; Write-Host '  (will launch silently at sign-in — toggle later in Settings)' -ForegroundColor DarkGray }
 
 Write-Host ''
 Write-Host 'Setup complete.' -ForegroundColor Green

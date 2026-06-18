@@ -54,7 +54,7 @@ function setAutostart(enabled) {
       "$s = New-Object -ComObject WScript.Shell",
       `$l = $s.CreateShortcut(${psq(lnk)})`,
       `$l.TargetPath = ${psq(wscript)}`,
-      `$l.Arguments = ${psq('"' + vbs + '"')}`,
+      `$l.Arguments = ${psq('"' + vbs + '" --silent')}`,
       `$l.WorkingDirectory = ${psq(__dirname)}`,
       "$l.Description = 'ADO Command Center (tray app)'",
       `if (Test-Path ${psq(ico)}) { $l.IconLocation = ${psq(ico + ",0")} }`,
@@ -670,8 +670,18 @@ server.on("error", (err) => {
   console.error("  [server error]", (err && err.message) || err);
 });
 
+function tokenFilePath(port) {
+  return path.join(require("os").tmpdir(), `acc-launch-${port}.json`);
+}
+
 function start(port = PORT) {
   server.listen(port, "127.0.0.1", () => {
+    // Persist the live launch token so another tray instance (e.g. a second
+    // shortcut click) can build an AUTHENTICATED open link instead of falling
+    // back to an unauthenticated bare URL. User-scoped temp file, not in repo.
+    try {
+      fs.writeFileSync(tokenFilePath(port), JSON.stringify({ port, token: LAUNCH_TOKEN, pid: process.pid }), "utf8");
+    } catch {}
     const link = `http://localhost:${port}/auth?token=${LAUNCH_TOKEN}`;
     console.log("\n  ADO Command Center");
     console.log("  ------------------");
@@ -689,10 +699,14 @@ function start(port = PORT) {
   return server;
 }
 
+// Best-effort cleanup of the token file when the server process exits.
+function cleanupTokenFile() { try { fs.unlinkSync(tokenFilePath(PORT)); } catch {} }
+process.on("exit", cleanupTokenFile);
+
 // Embeddable: the tray host (command-center-tray.js) requires this module and
 // calls start() in-process so it can read LAUNCH_TOKEN. Running the file
 // directly (node kanban-server.js / Start-Kanban.ps1) still starts the server.
-module.exports = { start, server, PORT, LAUNCH_TOKEN };
+module.exports = { start, server, PORT, LAUNCH_TOKEN, tokenFilePath };
 
 if (require.main === module) {
   start(PORT);
