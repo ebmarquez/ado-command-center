@@ -29,9 +29,16 @@
   --cp-accent-soft: rgba(177,31,75,0.08); --cp-accent-fg: #ffffff; --cp-success: #16a34a;
   --cp-danger: #dc2626; --cp-warning: #f59e0b; --cp-link: #0078d4; --cp-highlight: rgba(177,31,75,0.12);
   --cp-shadow: 0 18px 48px rgba(0,0,0,0.12);
+  --cp-primary-container: #ffdbe2; --cp-on-primary-container: #3f0017;
+  --shape-sm: 8px; --shape-md: 12px; --shape-lg: 16px; --shape-xl: 28px; --shape-full: 999px;
+  --m-elev1: 0 1px 2px rgba(0,0,0,0.10), 0 1px 3px 1px rgba(0,0,0,0.05);
+  --m-elev2: 0 1px 2px rgba(0,0,0,0.12), 0 2px 6px 2px rgba(0,0,0,0.09);
+  --m-elev3: 0 4px 8px 3px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.14);
+  --rail-w: 84px;
 }
 html[data-theme="dark"] {
   color-scheme: dark;
+  --cp-primary-container: #7e2942; --cp-on-primary-container: #ffd9e0;
   --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929; --cp-surface-soft: #2e2e2e;
   --cp-border: #474747; --cp-border-strong: #5f5f5f; --cp-text: #dedede; --cp-text-muted: #919191;
   --cp-text-soft: #b0b0b0; --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91;
@@ -155,35 +162,75 @@ select { background: var(--cp-surface); color: var(--cp-text); border: 1px solid
   border-radius: 0.625rem; padding: 6px 10px; font-size: 13px; font-family: inherit; }
 .statedot { width: 8px; height: 8px; border-radius: 50%; background: var(--cp-text-soft); display: inline-block; }
 .statedot.live { background: var(--cp-success); } .statedot.err { background: var(--cp-danger); }
+
+/* ---- Material chrome (Option D) ---- */
+body { display: grid; grid-template-columns: var(--rail-w) 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+:focus-visible { outline: 3px solid var(--cp-link); outline-offset: 2px; border-radius: var(--shape-sm); }
+.rail { grid-row: 1 / span 2; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0; position: sticky; top: 0; height: 100vh; }
+.rail .fab { width: 52px; height: 52px; border-radius: var(--shape-lg); border: none; background: var(--cp-primary-container);
+  color: var(--cp-on-primary-container); font-size: 22px; cursor: pointer; box-shadow: var(--m-elev2); margin-bottom: 10px; }
+.rail .fab:hover { box-shadow: var(--m-elev3); }
+.rail .nav { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 2px 4px; margin: 0;
+  text-decoration: none; color: var(--cp-text-muted); cursor: pointer; background: none; border: none; font-family: inherit; }
+.rail .nav .pill { width: 52px; height: 30px; border-radius: var(--shape-full); display: flex; align-items: center;
+  justify-content: center; font-size: 18px; transition: background .15s; }
+.rail .nav:hover .pill { background: var(--cp-surface-soft); }
+.rail .nav.active .pill { background: var(--cp-primary-container); color: var(--cp-on-primary-container); }
+.rail .nav .lbl { font-size: 11px; font-weight: 600; }
+.rail .nav.active .lbl { color: var(--cp-text); }
+.rail .railsp { flex: 1; }
+.rail #settingsSlot { width: 100%; display: flex; justify-content: center; }
+.rail #accGear { width: 52px; height: 40px; border-radius: var(--shape-full); font-size: 18px; padding: 0; background: transparent; }
+.rail #accGear:hover { background: var(--cp-surface-soft); }
+/* top app bar */
+.appbar { grid-column: 2; background: var(--cp-bg); display: flex; align-items: center; gap: 16px;
+  padding: 14px 24px; position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--cp-border); }
+.appbar h1 { font-size: 22px; font-weight: 500; margin: 0; letter-spacing: .1px; }
+.appbar .sub { font-size: 12px; color: var(--cp-text-muted); }
+.appbar .right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tbtn { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; border-radius: var(--shape-full);
+  border: 1px solid var(--cp-border); background: transparent; color: var(--cp-text); padding: 0 16px;
+  font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit; text-decoration: none; }
+.tbtn:hover { background: var(--cp-surface-soft); }
+.tbtn.filled { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+.content { grid-column: 2; overflow: auto; }
+.seg-toggle { border-radius: var(--shape-full); }
+.stat { border-radius: var(--shape-xl); box-shadow: var(--m-elev1); }
+.section { border-radius: var(--shape-xl); box-shadow: var(--m-elev1); }
 </style>
 </head>
 <body>
-<header>
-  <div class="title-row">
-    <h1>ADO Command Center</h1>
-    <span class="meta" id="metaLine">Loading…</span>
-    <span class="nav">
-      <span class="statedot" id="statedot"></span>
-      <span class="seg-toggle" id="stateFilter" title="Filter by work-item state">
-        <button class="segbtn active" data-f="active">Active only</button>
-        <button class="segbtn" data-f="hidedone">Hide done</button>
-        <button class="segbtn" data-f="all">Show all</button>
-      </span>
-      <button class="btn" id="refreshBtn">↻ Refresh</button>
-      <span id="settingsSlot"></span>
-      <a class="navlink" href="/" >← Kanban board</a>
-    </span>
+<nav class="rail">
+  <button class="fab" id="fabRefresh" title="Refresh / sync">↻</button>
+  <a class="nav" href="/"><span class="pill">▦</span><span class="lbl">Board</span></a>
+  <button class="nav active" data-tab="command"><span class="pill">◎</span><span class="lbl">Center</span></button>
+  <button class="nav" data-tab="hierarchy"><span class="pill">⛁</span><span class="lbl">Hierarchy</span></button>
+  <button class="nav" data-tab="workload"><span class="pill">▤</span><span class="lbl">Workload</span></button>
+  <div class="railsp"></div>
+  <span class="nav" id="settingsSlot"></span>
+</nav>
+<header class="appbar">
+  <div>
+    <h1 id="appTitle">Command Center</h1>
+    <div class="sub" id="metaLine">Loading…</div>
   </div>
-  <div class="tabs" id="tabs">
-    <span class="tab active" data-tab="command">Command Center</span>
-    <span class="tab" data-tab="hierarchy">Hierarchy</span>
-    <span class="tab" data-tab="workload">Workload</span>
+  <div class="right">
+    <span class="statedot" id="statedot"></span>
+    <span class="seg-toggle" id="stateFilter" title="Filter by work-item state">
+      <button class="segbtn active" data-f="active">Active only</button>
+      <button class="segbtn" data-f="hidedone">Hide done</button>
+      <button class="segbtn" data-f="all">Show all</button>
+    </span>
+    <button class="tbtn filled" id="refreshBtn">↻ Refresh</button>
   </div>
 </header>
-<div class="wrap">
-  <div class="tabpane active" id="pane-command"><div class="loading">Loading…</div></div>
-  <div class="tabpane" id="pane-hierarchy"><div class="loading">Loading hierarchy…</div></div>
-  <div class="tabpane" id="pane-workload"><div class="loading">Loading workload…</div></div>
+<div class="content">
+  <div class="wrap">
+    <div class="tabpane active" id="pane-command"><div class="loading">Loading…</div></div>
+    <div class="tabpane" id="pane-hierarchy"><div class="loading">Loading hierarchy…</div></div>
+    <div class="tabpane" id="pane-workload"><div class="loading">Loading workload…</div></div>
+  </div>
 </div>
 
 <script>
@@ -221,14 +268,21 @@ function setStatus(kind, text){
   document.getElementById('metaLine').textContent = text;
 }
 
-// ---- tabs ----
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+// ---- navigation rail (view switching) ----
+const TAB_TITLE = { command: 'Command Center', hierarchy: 'Hierarchy', workload: 'Workload' };
+const railTabs = document.querySelectorAll('.rail .nav[data-tab]');
+function selectTab(tab){
+  if(!TAB_TITLE[tab]) tab = 'command';
+  railTabs.forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
   document.querySelectorAll('.tabpane').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  document.getElementById('pane-'+t.dataset.tab).classList.add('active');
-});
+  document.getElementById('pane-'+tab).classList.add('active');
+  document.getElementById('appTitle').textContent = TAB_TITLE[tab];
+}
+railTabs.forEach(t => t.onclick = () => { selectTab(t.dataset.tab); history.replaceState(null, '', '#'+t.dataset.tab); });
+// honor a deep-link hash (e.g. /dashboard#hierarchy) on load
+selectTab((location.hash || '').replace('#',''));
 document.getElementById('refreshBtn').onclick = () => loadAll();
+document.getElementById('fabRefresh').onclick = () => loadAll();
 // ---- state filter switch ----
 document.querySelectorAll('#stateFilter .segbtn').forEach(b => b.onclick = () => {
   if(b.dataset.f === FILTER) return;
