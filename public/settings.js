@@ -37,12 +37,14 @@
   const style = document.createElement("style");
   style.textContent = `
     #accGear { line-height: 1; }
-    .acc-panel { position: fixed; top: 58px; right: 16px; z-index: 200; width: 280px;
-      background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border);
-      border-radius: 14px; box-shadow: var(--cp-shadow, 0 18px 48px rgba(0,0,0,0.2));
+    .acc-panel { position: fixed; top: 58px; right: 16px; z-index: 200; width: 560px; max-width: calc(100vw - 32px);
+      background: var(--cp-surface-soft); color: var(--cp-text); border: 2px solid var(--cp-accent);
+      border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,0.34);
       padding: 14px 16px; font-size: 13px; }
     .acc-panel[hidden] { display: none; }
-    .acc-panel h3 { margin: 0 0 10px; font-size: 14px; }
+    .acc-panel h3 { margin: -14px -16px 14px; padding: 12px 16px; font-size: 15px; font-weight: 700;
+      background: var(--cp-accent); color: var(--cp-accent-fg);
+      border-radius: 14px 14px 0 0; }
     .acc-row { margin-bottom: 14px; }
     .acc-row > label { display: block; font-size: 12px; font-weight: 600; color: var(--cp-text-muted); margin-bottom: 6px; }
     .acc-seg { display: inline-flex; border: 1px solid var(--cp-border); border-radius: 0.625rem; overflow: hidden; width: 100%; }
