@@ -37,14 +37,15 @@
   const style = document.createElement("style");
   style.textContent = `
     #accGear { line-height: 1; }
-    .acc-panel { position: fixed; top: 58px; right: 16px; z-index: 200; width: 560px; max-width: calc(100vw - 32px);
+    .acc-panel { position: fixed; top: 58px; right: 16px; bottom: 16px; z-index: 200; width: 560px; max-width: calc(100vw - 32px);
       background: var(--cp-surface-soft); color: var(--cp-text); border: 2px solid var(--cp-accent);
       border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,0.34);
-      padding: 14px 16px; font-size: 13px; }
+      padding: 0; font-size: 13px; display: flex; flex-direction: column; overflow: hidden; }
     .acc-panel[hidden] { display: none; }
-    .acc-panel h3 { margin: -14px -16px 14px; padding: 12px 16px; font-size: 15px; font-weight: 700;
+    .acc-panel h3 { flex: 0 0 auto; margin: 0; padding: 12px 16px; font-size: 15px; font-weight: 700;
       background: var(--cp-accent); color: var(--cp-accent-fg);
       border-radius: 14px 14px 0 0; }
+    .acc-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; }
     .acc-row { margin-bottom: 14px; }
     .acc-row > label { display: block; font-size: 12px; font-weight: 600; color: var(--cp-text-muted); margin-bottom: 6px; }
     .acc-seg { display: inline-flex; border: 1px solid var(--cp-border); border-radius: 0.625rem; overflow: hidden; width: 100%; }
@@ -79,7 +80,7 @@
     .acc-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--cp-border-strong);
       border-top-color: var(--cp-accent); border-radius: 50%; animation: accspin 0.7s linear infinite; vertical-align: -2px; margin-right: 6px; }
     @keyframes accspin { to { transform: rotate(360deg); } }
-    .acc-panel { max-height: calc(100vh - 80px); overflow-y: auto; }
+    .acc-panel { scroll-padding-bottom: 16px; }
     .acc-sec { border-top: 1px solid var(--cp-border); margin-top: 4px; padding-top: 12px; }
     .acc-field { margin-bottom: 10px; }
     .acc-field > label { display: block; font-size: 12px; font-weight: 600; color: var(--cp-text-muted); margin-bottom: 4px; }
@@ -106,6 +107,7 @@
   panel.hidden = true;
   panel.innerHTML = `
     <h3>Settings</h3>
+    <div class="acc-body">
     <div class="acc-row">
       <label>Theme</label>
       <div class="acc-seg" data-group="theme">
@@ -198,6 +200,7 @@
     <div class="acc-row" style="margin-bottom:0">
       <label>Account</label>
       <div class="acc-acct" id="accAcctBody">Checking…</div>
+    </div>
     </div>
   `;
   document.body.appendChild(panel);
