@@ -166,9 +166,9 @@ select { background: var(--cp-surface); color: var(--cp-text); border: 1px solid
 /* ---- Material chrome (Option D) ---- */
 body { display: grid; grid-template-columns: var(--rail-w) 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
 :focus-visible { outline: 3px solid var(--cp-link); outline-offset: 2px; border-radius: var(--shape-sm); }
-.rail { grid-row: 1 / span 2; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border);
-  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0; position: sticky; top: 0;
-  align-self: stretch; }
+.rail { background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0;
+  position: fixed; top: 0; left: 0; bottom: 0; width: var(--rail-w); overflow-y: auto; z-index: 30; }
 .rail .fab { width: 52px; height: 52px; border-radius: var(--shape-lg); border: none; background: var(--cp-primary-container);
   color: var(--cp-on-primary-container); font-size: 22px; cursor: pointer; box-shadow: var(--m-elev2); margin-bottom: 10px; }
 .rail .fab:hover { box-shadow: var(--m-elev3); }
